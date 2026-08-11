@@ -2,6 +2,7 @@ import { PublicClientApplication } from '@azure/msal-browser';
 
 const clientId = import.meta.env.VITE_CLIENT_ID;
 const tenantId = import.meta.env.VITE_TENANT_ID;
+const apiScope = import.meta.env.VITE_API_SCOPE;
 const redirectUri = import.meta.env.VITE_REDIRECT_URI || window.location.origin;
 const authority = `https://login.microsoftonline.com/${tenantId}`;
 
@@ -27,4 +28,8 @@ export const msalInstance = new PublicClientApplication(msalConfig);
 
 export const loginRequest = {
   scopes: ['openid', 'profile', 'User.Read'],
+};
+
+export const apiRequest = {
+  scopes: apiScope ? [apiScope] : [],
 };

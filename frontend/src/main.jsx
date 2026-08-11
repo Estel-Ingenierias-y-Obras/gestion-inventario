@@ -9,7 +9,12 @@ async function bootstrapApp() {
   try {
     console.log('[MSAL] initializing');
     await msalInstance.initialize();
-    await msalInstance.handleRedirectPromise();
+
+    try {
+      await msalInstance.handleRedirectPromise();
+    } catch (redirectError) {
+      console.error('Error al procesar la redirección de MSAL:', redirectError);
+    }
 
     createRoot(document.getElementById('root')).render(
       <StrictMode>

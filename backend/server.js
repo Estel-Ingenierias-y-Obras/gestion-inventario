@@ -6,11 +6,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const entregaRoutes = require('./routes/entregaRoutes');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-connectDB();
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -20,11 +19,14 @@ const limiter = rateLimit({
 });
 
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
-// TODO: integrar Microsoft Entra ID en una siguiente etapa para proteger rutas.
 app.use('/api/entregas', entregaRoutes);
 
 app.get('/', (req, res) => {
@@ -34,6 +36,14 @@ app.get('/', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
+app.use(errorHandler);
+
+const startServer = async () => {
+  await connectDB();
+
+  app.listen(PORT, () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
+  });
+};
+
+startServer();

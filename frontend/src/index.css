@@ -28,14 +28,6 @@ button, input, select, textarea {
   font: inherit;
 }
 
-button {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-}
-
 h1, h2, h3, p {
   margin: 0;
 }

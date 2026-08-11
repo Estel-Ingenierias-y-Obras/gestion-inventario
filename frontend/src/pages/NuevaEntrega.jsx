@@ -1,34 +1,23 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import PageShell from '../components/PageShell';
+import Toast from '../components/Toast';
 import { createEntrega } from '../services/api';
 
-const initialState = {
-  material: '',
-  modelo: '',
-  cantidad: '',
-  receptor: '',
-  departamento: '',
-  entregadoPor: '',
-};
+const initialState = { material: '', modelo: '', cantidad: '', receptor: '', departamento: '' };
 
 function NuevaEntrega() {
   const [form, setForm] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState(null);
+  const [toast, setToast] = useState(null);
+  const closeToast = useCallback(() => setToast(null), []);
 
   const validate = () => {
     const nextErrors = {};
     Object.entries(form).forEach(([key, value]) => {
-      if (key !== 'cantidad' && !String(value).trim()) {
-        nextErrors[key] = 'Este campo es obligatorio';
-      }
+      if (key !== 'cantidad' && !String(value).trim()) nextErrors[key] = 'Este campo es obligatorio';
     });
-
-    if (!form.cantidad || Number(form.cantidad) <= 0) {
-      nextErrors.cantidad = 'La cantidad debe ser mayor que cero';
-    }
-
+    if (!form.cantidad || Number(form.cantidad) <= 0) nextErrors.cantidad = 'La cantidad debe ser mayor que cero';
     return nextErrors;
   };
 
@@ -36,24 +25,18 @@ function NuevaEntrega() {
     event.preventDefault();
     const nextErrors = validate();
     setErrors(nextErrors);
-
     if (Object.keys(nextErrors).length > 0) {
+      setToast({ type: 'error', message: 'Revisa los campos marcados antes de continuar.' });
       return;
     }
 
     setLoading(true);
-    setNotice(null);
-
     try {
-      await createEntrega({
-        ...form,
-        cantidad: Number(form.cantidad),
-      });
-
-      setNotice({ type: 'success', text: 'Entrega registrada correctamente.' });
+      await createEntrega({ ...form, cantidad: Number(form.cantidad) });
       setForm(initialState);
+      setToast({ type: 'success', message: 'Entrega registrada correctamente.' });
     } catch (error) {
-      setNotice({ type: 'error', text: error?.response?.data?.message || 'No se pudo guardar la entrega.' });
+      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo guardar la entrega.' });
     } finally {
       setLoading(false);
     }
@@ -65,42 +48,28 @@ function NuevaEntrega() {
   };
 
   return (
-    <PageShell title="Nueva entrega" subtitle="Registro de entregas para el equipo operativo">
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+    <PageShell title="Nueva entrega" subtitle="Registra una asignación de material al equipo">
+      <form onSubmit={handleSubmit} className="form-card" noValidate>
+        <div className="form-card__header"><div><h2>Datos de la entrega</h2><p>Todos los campos son obligatorios.</p></div><span className="status-badge"><span /> Registro seguro</span></div>
+        <div className="form-grid">
           {[
-            { key: 'material', label: 'Material' },
-            { key: 'modelo', label: 'Modelo' },
-            { key: 'cantidad', label: 'Cantidad', type: 'number' },
-            { key: 'receptor', label: 'Receptor' },
-            { key: 'departamento', label: 'Departamento' },
-            { key: 'entregadoPor', label: 'Entregado por' },
+            { key: 'material', label: 'Material', placeholder: 'Ej. Portátil' },
+            { key: 'modelo', label: 'Modelo', placeholder: 'Ej. Surface Laptop 6' },
+            { key: 'cantidad', label: 'Cantidad', type: 'number', placeholder: '1' },
+            { key: 'receptor', label: 'Receptor', placeholder: 'Nombre y apellidos' },
+            { key: 'departamento', label: 'Departamento', placeholder: 'Ej. Finanzas' },
           ].map((field) => (
-            <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <span style={{ fontWeight: 600, color: '#334155' }}>{field.label}</span>
-              <input
-                type={field.type || 'text'}
-                value={form[field.key]}
-                onChange={(event) => updateField(field.key, event.target.value)}
-                style={{ border: `1px solid ${errors[field.key] ? '#ef4444' : '#cbd5e1'}`, borderRadius: '10px', padding: '0.8rem 0.9rem', fontSize: '0.95rem' }}
-              />
-              {errors[field.key] ? <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>{errors[field.key]}</span> : null}
+            <label key={field.key} className="field">
+              <span>{field.label}</span>
+              <input type={field.type || 'text'} min={field.type === 'number' ? '1' : undefined} value={form[field.key]} placeholder={field.placeholder} onChange={(event) => updateField(field.key, event.target.value)} className={errors[field.key] ? 'field__input--error' : ''} />
+              {errors[field.key] ? <small>{errors[field.key]}</small> : null}
             </label>
           ))}
+          <div className="authenticated-user"><span className="authenticated-user__icon">✓</span><div><small>Entregado por</small><strong>Usuario autenticado</strong></div></div>
         </div>
-
-        {notice ? (
-          <div style={{ padding: '0.9rem 1rem', borderRadius: '10px', background: notice.type === 'success' ? '#ecfdf3' : '#fef2f2', color: notice.type === 'success' ? '#166534' : '#991b1b' }}>
-            {notice.text}
-          </div>
-        ) : null}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="submit" disabled={loading} style={{ padding: '0.8rem 1.2rem', borderRadius: '10px', border: 'none', background: '#2563eb', color: 'white', cursor: loading ? 'wait' : 'pointer', fontWeight: 600 }}>
-            {loading ? 'Guardando...' : 'Guardar entrega'}
-          </button>
-        </div>
+        <div className="form-actions"><span>La fecha y el usuario se registrarán automáticamente.</span><button type="submit" disabled={loading} className="button button--primary">{loading ? 'Guardando…' : 'Guardar entrega'}</button></div>
       </form>
+      <Toast message={toast?.message} type={toast?.type} onClose={closeToast} />
     </PageShell>
   );
 }

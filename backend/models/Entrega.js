@@ -42,10 +42,25 @@ const entregaSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    createdBy: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 255,
+    },
+    role: {
+      type: String,
+      default: 'consulta',
+      enum: ['admin', 'inventario', 'consulta'],
+    },
   },
   {
     timestamps: true,
   }
 );
+
+entregaSchema.index({ createdAt: -1 });
+entregaSchema.index({ departamento: 1, fechaEntrega: -1 });
+entregaSchema.index({ material: 1, modelo: 1 });
 
 module.exports = mongoose.model('Entrega', entregaSchema);

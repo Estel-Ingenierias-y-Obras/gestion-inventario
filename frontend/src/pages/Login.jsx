@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
-import { useIsAuthenticated, useMsal } from '@azure/msal-react';
+import { useIsAuthenticated } from '@azure/msal-react';
 import { useNavigate } from 'react-router-dom';
 import { loginRequest, msalInstance } from '../auth/msalConfig';
 
 function Login() {
-  const { instance } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const navigate = useNavigate();
 

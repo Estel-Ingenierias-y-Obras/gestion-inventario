@@ -1,73 +1,89 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
+import Toast from '../components/Toast';
 import { getEntregas } from '../services/api';
 
 function Historial() {
   const [entregas, setEntregas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 0, total: 0 });
+  const [toast, setToast] = useState(null);
+  const closeToast = useCallback(() => setToast(null), []);
+  const pageLimit = 20;
 
   useEffect(() => {
+    let isActive = true;
     const cargar = async () => {
+      setLoading(true);
       try {
-        const response = await getEntregas();
-        setEntregas(response.data?.data || []);
+        const response = await getEntregas({ page, limit: pageLimit });
+        if (isActive) {
+          setEntregas(response.data?.data || []);
+          setPagination(response.data?.pagination || { page, totalPages: 0, total: 0 });
+        }
       } catch (error) {
         console.error(error);
+        if (isActive) setToast({ type: 'error', message: 'No se pudo cargar el historial.' });
       } finally {
-        setLoading(false);
+        if (isActive) setLoading(false);
       }
     };
 
     cargar();
-  }, []);
+    return () => { isActive = false; };
+  }, [page]);
 
-  const filtered = useMemo(() => {
-    return entregas.filter((item) => {
-      const term = search.toLowerCase();
-      return [item.material, item.modelo, item.receptor, item.departamento, item.entregadoPor]
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
-    });
-  }, [entregas, search]);
+  const filtered = useMemo(() => entregas.filter((item) => (
+    [item.material, item.modelo, item.receptor, item.departamento, item.entregadoPor]
+      .join(' ').toLowerCase().includes(search.trim().toLowerCase())
+  )), [entregas, search]);
 
   return (
-    <PageShell title="Historial" subtitle="Consulta y seguimiento de movimientos" actions={<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar" style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.7rem 0.8rem', minWidth: '220px' }} />}>
-      <div style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 8px 30px rgba(15,23,42,0.08)' }}>
+    <PageShell
+      title="Historial"
+      subtitle="Consulta y seguimiento de movimientos"
+      actions={<div className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar en esta página" aria-label="Buscar en esta página" /></div>}
+    >
+      <section className="panel">
+        <div className="panel__header panel__header--compact">
+          <div><h2>Registro de entregas</h2><p>{pagination.total} movimientos registrados</p></div>
+        </div>
         {loading ? (
-          <div style={{ padding: '2rem', color: '#64748b' }}>Cargando historial...</div>
+          <div className="panel__body"><LoadingState rows={8} /></div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: '2rem', color: '#64748b' }}>No hay entregas para mostrar.</div>
+          <div className="empty-state">{search ? 'No hay coincidencias en esta página.' : 'No hay entregas para mostrar.'}</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ background: '#f8fafc' }}>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Fecha</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Material</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Modelo</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Cantidad</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Receptor</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Departamento</th>
-                <th style={{ textAlign: 'left', padding: '0.9rem', color: '#334155' }}>Entregado por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr key={item._id} style={{ borderTop: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '0.9rem' }}>{new Date(item.fechaEntrega).toLocaleDateString()}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.material}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.modelo}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.cantidad}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.receptor}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.departamento}</td>
-                  <td style={{ padding: '0.9rem' }}>{item.entregadoPor}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead><tr><th>Fecha</th><th>Material</th><th>Cantidad</th><th>Receptor</th><th>Departamento</th><th>Entregado por</th></tr></thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item._id}>
+                    <td>{new Date(item.fechaEntrega).toLocaleDateString()}</td>
+                    <td><strong>{item.material}</strong><span className="table-secondary">{item.modelo}</span></td>
+                    <td>{item.cantidad}</td>
+                    <td>{item.receptor}</td>
+                    <td><span className="tag">{item.departamento}</span></td>
+                    <td>{item.entregadoPor}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+        <div className="pagination">
+          <span>{pagination.total} entregas</span>
+          <div className="pagination__controls">
+            <button className="button button--secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={loading || page <= 1}>Anterior</button>
+            <span>Página <strong>{pagination.page}</strong> de <strong>{pagination.totalPages || 1}</strong></span>
+            <button className="button button--secondary" type="button" onClick={() => setPage((current) => current + 1)} disabled={loading || pagination.totalPages === 0 || page >= pagination.totalPages}>Siguiente</button>
+          </div>
+        </div>
+      </section>
+      <Toast message={toast?.message} type={toast?.type} onClose={closeToast} />
     </PageShell>
   );
 }
