@@ -6,12 +6,42 @@ const normalizeString = (value) => {
   return value.trim();
 };
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildEntregaFilter = ({ period, search }) => {
+  const filter = { deleted: { $ne: true } };
+  const ahora = new Date();
+
+  if (period === 'week') {
+    const inicioSemana = new Date(ahora);
+    const dia = inicioSemana.getDay();
+    inicioSemana.setDate(inicioSemana.getDate() - (dia === 0 ? 6 : dia - 1));
+    inicioSemana.setHours(0, 0, 0, 0);
+    filter.fechaEntrega = { $gte: inicioSemana };
+  } else if (period === 'month') {
+    filter.fechaEntrega = { $gte: new Date(ahora.getFullYear(), ahora.getMonth(), 1) };
+  }
+
+  const normalizedSearch = normalizeString(search).slice(0, 100);
+  if (normalizedSearch) {
+    const partialMatch = new RegExp(escapeRegExp(normalizedSearch), 'i');
+    filter.$or = [
+      { material: partialMatch },
+      { modelo: partialMatch },
+      { receptor: partialMatch },
+      { departamento: partialMatch },
+      { entregadoPor: partialMatch },
+    ];
+  }
+
+  return filter;
+};
+
 const crearEntrega = async (req, res, next) => {
   try {
     const { material, modelo, cantidad, receptor, departamento } = req.body;
     const usuario = req.user || {};
     const entregadoPor = normalizeString(usuario.name || usuario.email || 'Usuario autenticado');
-
     const datosLimpiados = {
       material: normalizeString(material),
       modelo: normalizeString(modelo),
@@ -21,21 +51,17 @@ const crearEntrega = async (req, res, next) => {
       entregadoPor,
     };
 
-    const nuevaEntrega = new Entrega(datosLimpiados);
-    const entregaGuardada = await nuevaEntrega.save();
+    const entregaGuardada = await Entrega.create(datosLimpiados);
 
     await auditLogger({
       action: 'CREATE',
       entity: 'Entrega',
       user: { name: usuario.name, email: usuario.email, oid: usuario.oid },
-      details: { material: datosLimpiados.material, receptor: datosLimpiados.receptor },
+      details: { entregaId: entregaGuardada._id.toString(), material: datosLimpiados.material, receptor: datosLimpiados.receptor },
       req,
     });
 
-    return res.status(201).json({
-      success: true,
-      data: entregaGuardada,
-    });
+    return res.status(201).json({ success: true, data: entregaGuardada });
   } catch (error) {
     next(error);
   }
@@ -46,14 +72,15 @@ const obtenerEntregas = async (req, res, next) => {
     const parsedPage = Number(req.query.page);
     const parsedLimit = Number(req.query.limit);
     const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-    const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
-      ? Math.min(parsedLimit, 100)
-      : 20;
+    const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
     const skip = (page - 1) * limit;
+    const period = ['week', 'month', 'all'].includes(req.query.period) ? req.query.period : 'all';
+    const search = normalizeString(req.query.search).slice(0, 100);
+    const filter = buildEntregaFilter({ period, search });
 
     const [entregas, total] = await Promise.all([
-      Entrega.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Entrega.countDocuments(),
+      Entrega.find(filter).sort({ fechaEntrega: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Entrega.countDocuments(filter),
     ]);
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
@@ -61,20 +88,47 @@ const obtenerEntregas = async (req, res, next) => {
       action: 'READ',
       entity: 'Entrega',
       user: { name: req.user?.name, email: req.user?.email, oid: req.user?.oid },
-      details: { count: entregas.length, page, limit, total },
+      details: { count: entregas.length, page, limit, total, period, search },
       req,
     });
 
     return res.status(200).json({
       success: true,
       data: entregas,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-      },
+      pagination: { page, limit, total, totalPages },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const eliminarEntrega = async (req, res, next) => {
+  try {
+    const usuario = req.user || {};
+    const deletedBy = {
+      name: usuario.name || 'Usuario autenticado',
+      email: usuario.email || '',
+      oid: usuario.oid || '',
+    };
+    const entrega = await Entrega.findOneAndUpdate(
+      { _id: req.params.id, deleted: { $ne: true } },
+      { $set: { deleted: true, deletedAt: new Date(), deletedBy } },
+      { new: true, runValidators: true }
+    );
+
+    if (!entrega) {
+      return res.status(404).json({ success: false, message: 'La entrega no existe o ya ha sido eliminada.' });
+    }
+
+    await auditLogger({
+      action: 'DELETE_DELIVERY',
+      entity: 'Entrega',
+      user: deletedBy,
+      details: { entregaId: entrega._id.toString() },
+      req,
+    });
+
+    return res.status(200).json({ success: true });
   } catch (error) {
     next(error);
   }
@@ -85,18 +139,12 @@ const obtenerEstadisticas = async (req, res, next) => {
     const ahora = new Date();
     const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
     const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-
     const [estadisticas] = await Entrega.aggregate([
+      { $match: { deleted: { $ne: true } } },
       {
         $facet: {
-          entregasHoy: [
-            { $match: { fechaEntrega: { $gte: inicioHoy } } },
-            { $count: 'total' },
-          ],
-          entregasMes: [
-            { $match: { fechaEntrega: { $gte: inicioMes } } },
-            { $count: 'total' },
-          ],
+          entregasHoy: [{ $match: { fechaEntrega: { $gte: inicioHoy } } }, { $count: 'total' }],
+          entregasMes: [{ $match: { fechaEntrega: { $gte: inicioMes } } }, { $count: 'total' }],
           departamentos: [
             { $match: { departamento: { $nin: ['', null] } } },
             { $group: { _id: '$departamento' } },
@@ -128,10 +176,7 @@ const obtenerEstadisticas = async (req, res, next) => {
       req,
     });
 
-    return res.status(200).json({
-      success: true,
-      data: estadisticas,
-    });
+    return res.status(200).json({ success: true, data: estadisticas });
   } catch (error) {
     next(error);
   }
@@ -139,6 +184,7 @@ const obtenerEstadisticas = async (req, res, next) => {
 
 module.exports = {
   crearEntrega,
+  eliminarEntrega,
   obtenerEntregas,
   obtenerEstadisticas,
 };

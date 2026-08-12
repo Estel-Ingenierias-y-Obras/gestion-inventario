@@ -6,22 +6,22 @@ function Perfil() {
 
   return (
     <PageShell title="Perfil" subtitle="Información de cuenta y acceso">
-      <div style={{ background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: '0 8px 30px rgba(15,23,42,0.08)', maxWidth: '720px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>
+      <section className="profile-card">
+        <div className="profile-card__identity">
+          <div className="profile-card__avatar" aria-hidden="true">
             {profile.displayName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <h3 style={{ margin: 0 }}>{profile.displayName}</h3>
-            <p style={{ margin: 0, color: '#64748b' }}>{profile.email}</p>
+            <h3>{profile.displayName}</h3>
+            <p>{profile.email}</p>
           </div>
         </div>
-        <div style={{ display: 'grid', gap: '0.8rem' }}>
-          <div style={{ padding: '0.9rem 1rem', background: '#f8fafc', borderRadius: '12px' }}><strong>Tenant:</strong> {profile.tenantId}</div>
-          <div style={{ padding: '0.9rem 1rem', background: '#f8fafc', borderRadius: '12px' }}><strong>ID de cuenta:</strong> {profile.id}</div>
-          <div style={{ padding: '0.9rem 1rem', background: '#f8fafc', borderRadius: '12px' }}><strong>Último acceso:</strong> {new Date().toLocaleString()}</div>
+        <div className="profile-card__details">
+          <div className="profile-detail"><strong>Tenant</strong><span>{profile.tenantId}</span></div>
+          <div className="profile-detail"><strong>ID de cuenta</strong><span>{profile.id}</span></div>
+          <div className="profile-detail"><strong>Último acceso</strong><span>{new Date().toLocaleString()}</span></div>
         </div>
-      </div>
+      </section>
     </PageShell>
   );
 }

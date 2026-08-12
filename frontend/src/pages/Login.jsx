@@ -18,13 +18,27 @@ function Login() {
   };
 
   return (
-    <div style={{ maxWidth: '420px', margin: '4rem auto', padding: '2rem', textAlign: 'center' }}>
-      <h1>Gestión de Inventario</h1>
-      <p>Inicia sesión para acceder al panel de inventario.</p>
-      <button type="button" onClick={handleLogin} style={{ padding: '0.75rem 1.25rem', cursor: 'pointer' }}>
-        Iniciar sesión con Microsoft
-      </button>
-    </div>
+    <main className="login-page">
+      <section className="login-panel">
+        <div className="login-panel__content">
+          <div className="login-brand">
+            <div className="brand__mark" aria-hidden="true"><img src="/estel-isotipo-corporativo.png" alt="" /></div>
+            <span>Gestión de Inventario</span>
+          </div>
+          <h1>Bienvenido de nuevo</h1>
+          <p className="login-panel__lead">Accede al centro de operaciones para gestionar las entregas y consultar la actividad del inventario.</p>
+          <button type="button" onClick={handleLogin} className="button button--primary">
+            Iniciar sesión con Microsoft
+          </button>
+          <p className="login-panel__note"><span aria-hidden="true">◆</span> Acceso corporativo seguro</p>
+        </div>
+      </section>
+      <aside className="login-visual" aria-label="Plataforma corporativa de gestión">
+        <span className="login-visual__eyebrow">Centro de operaciones</span>
+        <h2>Control y trazabilidad en un único espacio.</h2>
+        <p>Una plataforma empresarial diseñada para simplificar la gestión diaria del inventario.</p>
+      </aside>
+    </main>
   );
 }
 

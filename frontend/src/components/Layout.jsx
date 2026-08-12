@@ -21,7 +21,7 @@ function Layout() {
     <div className="app-layout">
       <header className="topbar">
         <div className="brand">
-          <div className="brand__mark" aria-hidden="true"><span /><span /><span /><span /></div>
+          <div className="brand__mark" aria-hidden="true"><img src="/estel-isotipo-corporativo.png" alt="" /></div>
           <div className="brand__copy">
             <div className="brand__title">Gestión de Inventario</div>
             <div className="brand__subtitle">Centro de operaciones</div>

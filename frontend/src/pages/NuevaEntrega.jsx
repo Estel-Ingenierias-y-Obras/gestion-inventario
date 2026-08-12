@@ -5,6 +5,19 @@ import { createEntrega } from '../services/api';
 
 const initialState = { material: '', modelo: '', cantidad: '', receptor: '', departamento: '' };
 
+const departamentos = [
+  'IT',
+  'RRHH',
+  'Producción',
+  'Administración',
+  'Energía',
+  'Marketing',
+  'SAT',
+  'Almacén',
+  'Proyectos',
+  'Presupuestos',
+];
+
 function NuevaEntrega() {
   const [form, setForm] = useState(initialState);
   const [errors, setErrors] = useState({});
@@ -34,9 +47,9 @@ function NuevaEntrega() {
     try {
       await createEntrega({ ...form, cantidad: Number(form.cantidad) });
       setForm(initialState);
-      setToast({ type: 'success', message: 'Entrega registrada correctamente.' });
+      setToast({ type: 'success', message: 'Entrega creada correctamente.' });
     } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo guardar la entrega.' });
+      setToast({ type: 'error', message: error?.response?.data?.message || 'Error al realizar la operación.' });
     } finally {
       setLoading(false);
     }
@@ -57,11 +70,18 @@ function NuevaEntrega() {
             { key: 'modelo', label: 'Modelo', placeholder: 'Ej. Surface Laptop 6' },
             { key: 'cantidad', label: 'Cantidad', type: 'number', placeholder: '1' },
             { key: 'receptor', label: 'Receptor', placeholder: 'Nombre y apellidos' },
-            { key: 'departamento', label: 'Departamento', placeholder: 'Ej. Finanzas' },
+            { key: 'departamento', label: 'Departamento', type: 'select' },
           ].map((field) => (
             <label key={field.key} className="field">
               <span>{field.label}</span>
-              <input type={field.type || 'text'} min={field.type === 'number' ? '1' : undefined} value={form[field.key]} placeholder={field.placeholder} onChange={(event) => updateField(field.key, event.target.value)} className={errors[field.key] ? 'field__input--error' : ''} />
+              {field.type === 'select' ? (
+                <select value={form[field.key]} onChange={(event) => updateField(field.key, event.target.value)} className={errors[field.key] ? 'field__input--error' : ''} required>
+                  <option value="" disabled>Selecciona un departamento</option>
+                  {departamentos.map((departamento) => <option key={departamento} value={departamento}>{departamento}</option>)}
+                </select>
+              ) : (
+                <input type={field.type || 'text'} min={field.type === 'number' ? '1' : undefined} value={form[field.key]} placeholder={field.placeholder} onChange={(event) => updateField(field.key, event.target.value)} className={errors[field.key] ? 'field__input--error' : ''} />
+              )}
               {errors[field.key] ? <small>{errors[field.key]}</small> : null}
             </label>
           ))}

@@ -2,8 +2,6 @@
   font-family: 'Segoe UI', Roboto, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background: #f4f7fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -21,11 +19,20 @@ html, body, #root {
 }
 
 body {
-  background: linear-gradient(135deg, #f8fbff 0%, #f4f7fb 100%);
+  background: var(--color-background);
 }
 
 button, input, select, textarea {
   font: inherit;
+}
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  color: var(--color-text-on-brand);
+  background: var(--color-primary);
 }
 
 h1, h2, h3, p {

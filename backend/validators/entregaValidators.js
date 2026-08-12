@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 
 const createEntregaValidator = [
   body('material').trim().isLength({ min: 2, max: 100 }).withMessage('El material es obligatorio y debe tener entre 2 y 100 caracteres.'),
@@ -8,6 +8,11 @@ const createEntregaValidator = [
   body('departamento').trim().isLength({ min: 2, max: 100 }).withMessage('El departamento es obligatorio y debe tener entre 2 y 100 caracteres.'),
 ];
 
+const deleteEntregaValidator = [
+  param('id').isMongoId().withMessage('El identificador de la entrega no es válido.'),
+];
+
 module.exports = {
   createEntregaValidator,
+  deleteEntregaValidator,
 };

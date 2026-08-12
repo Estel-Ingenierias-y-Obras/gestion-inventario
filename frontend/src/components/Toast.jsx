@@ -10,7 +10,7 @@ function Toast({ message, type = 'success', onClose }) {
   if (!message) return null;
 
   return (
-    <div className={`toast toast--${type}`} role="status" aria-live="polite">
+    <div className={`toast toast--${type}`} role={type === 'error' ? 'alert' : 'status'} aria-live={type === 'error' ? 'assertive' : 'polite'}>
       <span className="toast__icon" aria-hidden="true">{type === 'success' ? '✓' : '!'}</span>
       <span>{message}</span>
       <button type="button" className="toast__close" onClick={onClose} aria-label="Cerrar notificación">×</button>

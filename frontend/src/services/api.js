@@ -37,10 +37,11 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-export const getEntregas = ({ page = 1, limit = 20 } = {}) => (
-  api.get('/api/entregas', { params: { page, limit } })
+export const getEntregas = ({ page = 1, limit = 20, period = 'all', search = '' } = {}) => (
+  api.get('/api/entregas', { params: { page, limit, period, search } })
 );
 export const getEntregaStats = () => api.get('/api/entregas/stats');
 export const createEntrega = (payload) => api.post('/api/entregas', payload);
+export const deleteEntrega = (id) => api.delete(`/api/entregas/${id}`);
 
 export default api;

@@ -53,6 +53,19 @@ const entregaSchema = new mongoose.Schema(
       default: 'consulta',
       enum: ['admin', 'inventario', 'consulta'],
     },
+    deleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Object,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -62,5 +75,6 @@ const entregaSchema = new mongoose.Schema(
 entregaSchema.index({ createdAt: -1 });
 entregaSchema.index({ departamento: 1, fechaEntrega: -1 });
 entregaSchema.index({ material: 1, modelo: 1 });
+entregaSchema.index({ deleted: 1, fechaEntrega: -1 });
 
 module.exports = mongoose.model('Entrega', entregaSchema);
