@@ -29,7 +29,7 @@ function App() {
     <BrowserRouter>
       <RouteLogger />
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -38,7 +38,7 @@ function App() {
             <Route path="/perfil" element={<Perfil />} />
           </Route>
         </Route>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Login />} />
       </Routes>
     </BrowserRouter>
   );
