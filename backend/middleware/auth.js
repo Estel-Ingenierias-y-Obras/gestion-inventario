@@ -56,8 +56,8 @@ const getSigningKey = async (kid, tokenVersion) => {
 };
 
 const extractUserInfo = (claims) => ({
-  name: claims.name || claims.preferred_username || claims.email || 'Usuario autenticado',
-  email: claims.preferred_username || claims.email || '',
+  name: claims.name || claims.preferred_username || claims.email || claims.upn || claims.unique_name || 'Usuario autenticado',
+  email: claims.preferred_username || claims.email || claims.upn || claims.unique_name || '',
   tenantId: claims.tid || claims.tenantId || '',
   oid: claims.oid || '',
 });

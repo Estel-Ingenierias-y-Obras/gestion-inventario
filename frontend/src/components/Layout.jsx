@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
+import { useAccess } from '../context/AccessContext';
 
-const navItems = [
+const baseNavItems = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/entregas/nueva', label: 'Nueva entrega' },
   { to: '/historial', label: 'Historial' },
@@ -10,6 +11,8 @@ const navItems = [
 
 function Layout() {
   const { accounts, instance } = useMsal();
+  const { isAdmin } = useAccess();
+  const navItems = isAdmin ? [...baseNavItems, { to: '/configuracion', label: 'Configuración' }] : baseNavItems;
   const userName = accounts[0]?.name || 'Usuario';
   const userEmail = accounts[0]?.username || 'usuario@empresa.com';
 

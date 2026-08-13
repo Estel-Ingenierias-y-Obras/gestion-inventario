@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import AccessGuard from './components/AccessGuard';
+import AdminRoute from './components/AdminRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import NuevaEntrega from './pages/NuevaEntrega';
 import Historial from './pages/Historial';
 import Perfil from './pages/Perfil';
+import Configuracion from './pages/Configuracion';
+import NoAutorizado from './pages/NoAutorizado';
 import './App.css';
 
 function RouteLogger() {
@@ -31,11 +35,17 @@ function App() {
       <Routes>
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/entregas/nueva" element={<NuevaEntrega />} />
-            <Route path="/historial" element={<Historial />} />
-            <Route path="/perfil" element={<Perfil />} />
+          <Route path="/no-autorizado" element={<NoAutorizado />} />
+          <Route element={<AccessGuard />}>
+            <Route element={<Layout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/entregas/nueva" element={<NuevaEntrega />} />
+              <Route path="/historial" element={<Historial />} />
+              <Route path="/perfil" element={<Perfil />} />
+              <Route element={<AdminRoute />}>
+                <Route path="/configuracion" element={<Configuracion />} />
+              </Route>
+            </Route>
           </Route>
         </Route>
         <Route path="/" element={<Login />} />

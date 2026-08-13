@@ -66,5 +66,9 @@ export const getEntregas = ({ page = 1, limit = 20, period = 'all', search = '' 
 export const getEntregaStats = () => api.get('/api/entregas/stats');
 export const createEntrega = (payload) => api.post('/api/entregas', payload);
 export const deleteEntrega = (id) => api.delete(`/api/entregas/${id}`);
+export const getAccessStatus = () => api.get('/api/whitelist/access');
+export const getWhitelistUsers = () => api.get('/api/whitelist');
+export const addWhitelistUser = (payload) => api.post('/api/whitelist', payload);
+export const deleteWhitelistUser = (id) => api.delete(`/api/whitelist/${id}`);
 
 export default api;
