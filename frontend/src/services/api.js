@@ -20,10 +20,33 @@ api.interceptors.request.use(async (config) => {
     throw new Error('VITE_API_SCOPE no está configurado.');
   }
 
-  const tokenResponse = await msalInstance.acquireTokenSilent({
-    ...apiRequest,
-    account,
-  });
+  let tokenResponse;
+
+  try {
+    console.log('[MSAL] acquireTokenSilent start', {
+      route: window.location.pathname,
+      scopes: apiRequest.scopes,
+      account: account.username,
+    });
+    tokenResponse = await msalInstance.acquireTokenSilent({
+      ...apiRequest,
+      account,
+    });
+    console.log('[MSAL] acquireTokenSilent result', {
+      account: tokenResponse.account?.username || null,
+      scopes: tokenResponse.scopes || [],
+      fromCache: tokenResponse.fromCache,
+    });
+  } catch (tokenError) {
+    console.error('[MSAL] acquireTokenSilent error', {
+      name: tokenError?.name,
+      errorCode: tokenError?.errorCode,
+      subError: tokenError?.subError,
+      message: tokenError?.message,
+      stack: tokenError?.stack,
+    });
+    throw tokenError;
+  }
 
   if (import.meta.env.VITE_AUTH_DEBUG === 'true') {
     console.info('[AUTH] Access token obtenido', {
