@@ -2,6 +2,7 @@ const EmailSchedule = require('../models/EmailSchedule');
 const auditLogger = require('../utils/auditLogger');
 const { sendEmailReport } = require('../services/emailReportService');
 const { listPendingEmailSchedules, sendPendingEmailSchedule } = require('../services/emailScheduleProcessor');
+const { testSmtpDelivery } = require('../services/smtpTestService');
 
 const listEmailSchedules = async (req, res, next) => {
   try {
@@ -76,4 +77,29 @@ const listPendingSchedules = async (req, res, next) => {
   }
 };
 
-module.exports = { listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport };
+const testSmtp = async (req, res) => {
+  try {
+    const result = await testSmtpDelivery();
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('[SMTP TEST]', {
+      code: error.code,
+      responseCode: error.responseCode,
+      command: error.command,
+      message: error.message,
+    });
+    return res.status(502).json({
+      success: false,
+      message: 'La prueba SMTP ha fallado.',
+      error: {
+        code: error.code || 'SMTP_TEST_FAILED',
+        responseCode: error.responseCode || null,
+        command: error.command || null,
+      },
+    });
+  }
+};
+
+module.exports = {
+  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport, testSmtp,
+};

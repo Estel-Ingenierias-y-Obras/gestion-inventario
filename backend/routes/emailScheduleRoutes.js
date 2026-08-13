@@ -3,7 +3,7 @@ const authenticate = require('../middleware/auth');
 const { requireWhitelist, requireAdmin } = require('../middleware/whitelist');
 const validateRequest = require('../middleware/validateRequest');
 const {
-  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport,
+  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport, testSmtp,
 } = require('../controllers/emailScheduleController');
 const { createEmailScheduleValidator, emailScheduleIdValidator } = require('../validators/emailScheduleValidators');
 
@@ -11,6 +11,7 @@ const router = express.Router();
 
 router.use(authenticate, requireWhitelist, requireAdmin);
 router.get('/pending', listPendingSchedules);
+router.post('/test-smtp', testSmtp);
 router.get('/', listEmailSchedules);
 router.post('/', createEmailScheduleValidator, validateRequest, createEmailSchedule);
 router.post('/:id/send', emailScheduleIdValidator, validateRequest, sendScheduledReport);
