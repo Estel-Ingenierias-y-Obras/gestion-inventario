@@ -23,17 +23,36 @@ const testSmtpDelivery = async () => {
     port: Number(process.env.SMTP_PORT),
     secure: Number(process.env.SMTP_PORT) === 465,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
   });
 
   try {
-    await transporter.verify();
-    const result = await transporter.sendMail({
-      from: TEST_FROM,
-      to: TEST_TO,
-      subject: 'Prueba SMTP - Gestión de Inventario',
-      text: 'Prueba SMTP completada correctamente desde la aplicación Gestión de Inventario.',
-      html: '<p>Prueba SMTP completada correctamente desde la aplicación <strong>Gestión de Inventario</strong>.</p>',
-    });
+    console.log('[SMTP TEST] Verificando conexión y autenticación...');
+    try {
+      await transporter.verify();
+    } catch (error) {
+      error.smtpStage = 'verify';
+      throw error;
+    }
+
+    console.log('[SMTP TEST] Conexión verificada. Enviando correo...');
+    let result;
+    try {
+      result = await transporter.sendMail({
+        from: TEST_FROM,
+        to: TEST_TO,
+        subject: 'Prueba SMTP - Gestión de Inventario',
+        text: 'Prueba SMTP completada correctamente desde la aplicación Gestión de Inventario.',
+        html: '<p>Prueba SMTP completada correctamente desde la aplicación <strong>Gestión de Inventario</strong>.</p>',
+      });
+    } catch (error) {
+      error.smtpStage = 'send';
+      throw error;
+    }
+
+    console.log('[SMTP TEST] Correo aceptado por el servidor SMTP.');
 
     return {
       connected: true,

@@ -83,6 +83,7 @@ const testSmtp = async (req, res) => {
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
     console.error('[SMTP TEST]', {
+      stage: error.smtpStage,
       code: error.code,
       responseCode: error.responseCode,
       command: error.command,
@@ -92,6 +93,7 @@ const testSmtp = async (req, res) => {
       success: false,
       message: 'La prueba SMTP ha fallado.',
       error: {
+        stage: error.smtpStage || 'configuration',
         code: error.code || 'SMTP_TEST_FAILED',
         responseCode: error.responseCode || null,
         command: error.command || null,
