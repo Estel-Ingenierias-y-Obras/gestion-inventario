@@ -59,7 +59,7 @@ const sendScheduledReport = async (req, res, next) => {
   try {
     const schedule = await EmailSchedule.findById(req.params.id);
     if (!schedule) return res.status(404).json({ success: false, message: 'Programación no encontrada.' });
-    const result = req.query.force === 'true'
+    const result = !req.automation && req.query.force === 'true'
       ? await sendEmailReport(schedule, { user: req.user, req, reportPeriod: 'manual' })
       : await sendPendingEmailSchedule(schedule, { user: req.user, req });
     return res.status(200).json({ success: true, data: result });
