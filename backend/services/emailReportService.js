@@ -1,6 +1,6 @@
-const nodemailer = require('nodemailer');
 const Entrega = require('../models/Entrega');
 const auditLogger = require('../utils/auditLogger');
+const { sendGraphMail } = require('./graphMailService');
 
 const REPORT_TIMEZONE = process.env.REPORT_TIMEZONE || 'Europe/Madrid';
 
@@ -39,19 +39,6 @@ const getReportRange = (frequency, now = new Date()) => {
   };
 };
 
-const createTransport = () => {
-  const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
-  const missing = required.filter((name) => !process.env[name]);
-  if (missing.length) throw new Error(`Configuración SMTP incompleta: ${missing.join(', ')}`);
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-};
-
 const buildReportHtml = (deliveries, frequency) => {
   const label = frequency === 'weekly' ? 'Últimos 7 días' : 'Mes natural completo';
   const rows = deliveries.map((delivery) => `<tr>
@@ -69,17 +56,16 @@ const buildReportHtml = (deliveries, frequency) => {
     </table></body></html>`;
 };
 
-const sendEmailReport = async (schedule, { user = null, req = null, reportDate = new Date(), reportPeriod = '', messageId } = {}) => {
+const sendEmailReport = async (schedule, { user = null, req = null, reportDate = new Date(), reportPeriod = '', idempotencyKey = '' } = {}) => {
   const range = getReportRange(schedule.frequency, reportDate);
   const deliveries = await Entrega.find({ deleted: false, fechaEntrega: { $gte: range.start, $lt: range.end } })
     .sort({ fechaEntrega: -1 }).lean();
 
-  await createTransport().sendMail({
-    from: process.env.SMTP_FROM,
+  await sendGraphMail({
     to: schedule.email,
     subject: 'Registro de entregas',
     html: buildReportHtml(deliveries, schedule.frequency),
-    ...(messageId ? { messageId } : {}),
+    idempotencyKey,
   });
 
   schedule.lastSentAt = new Date();

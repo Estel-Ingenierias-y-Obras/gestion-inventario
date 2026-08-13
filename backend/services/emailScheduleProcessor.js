@@ -90,7 +90,7 @@ const sendPendingEmailSchedule = async (schedule, { user, req, now = new Date() 
   try {
     const report = await sendEmailReport(schedule, {
       user, req, reportDate: occurrence, reportPeriod: periodKey,
-      messageId: `<email-schedule-${schedule._id}-${periodKey.replace(/:/g, '-')}@esteling.com>`,
+      idempotencyKey: `email-schedule:${schedule._id}:${periodKey}`,
     });
     run.status = 'sent'; run.sentAt = new Date(); run.lockedUntil = null;
     await run.save();

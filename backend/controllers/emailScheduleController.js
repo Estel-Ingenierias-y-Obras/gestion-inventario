@@ -2,7 +2,7 @@ const EmailSchedule = require('../models/EmailSchedule');
 const auditLogger = require('../utils/auditLogger');
 const { sendEmailReport } = require('../services/emailReportService');
 const { listPendingEmailSchedules, sendPendingEmailSchedule } = require('../services/emailScheduleProcessor');
-const { testSmtpDelivery } = require('../services/smtpTestService');
+const { testGraphMail } = require('../services/graphMailService');
 
 const listEmailSchedules = async (req, res, next) => {
   try {
@@ -77,31 +77,27 @@ const listPendingSchedules = async (req, res, next) => {
   }
 };
 
-const testSmtp = async (req, res) => {
+const testGraph = async (req, res) => {
   try {
-    const result = await testSmtpDelivery();
+    const result = await testGraphMail();
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error('[SMTP TEST]', {
-      stage: error.smtpStage,
-      code: error.code,
-      responseCode: error.responseCode,
-      command: error.command,
+    console.error('[GRAPH TEST]', {
+      status: error.graphStatus || error.statusCode,
+      code: error.graphCode || error.name,
       message: error.message,
     });
     return res.status(502).json({
       success: false,
-      message: 'La prueba SMTP ha fallado.',
+      message: 'La prueba de Microsoft Graph ha fallado.',
       error: {
-        stage: error.smtpStage || 'configuration',
-        code: error.code || 'SMTP_TEST_FAILED',
-        responseCode: error.responseCode || null,
-        command: error.command || null,
+        status: error.graphStatus || null,
+        code: error.graphCode || error.name || 'GRAPH_TEST_FAILED',
       },
     });
   }
 };
 
 module.exports = {
-  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport, testSmtp,
+  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport, testGraph,
 };
