@@ -70,5 +70,9 @@ export const getAccessStatus = () => api.get('/api/whitelist/access');
 export const getWhitelistUsers = () => api.get('/api/whitelist');
 export const addWhitelistUser = (payload) => api.post('/api/whitelist', payload);
 export const deleteWhitelistUser = (id) => api.delete(`/api/whitelist/${id}`);
+export const getEmailSchedules = () => api.get('/api/email-schedules');
+export const addEmailSchedule = (payload) => api.post('/api/email-schedules', payload);
+export const deleteEmailSchedule = (id) => api.delete(`/api/email-schedules/${id}`);
+export const sendEmailSchedule = (id) => api.post(`/api/email-schedules/${id}/send?force=true`);
 
 export default api;

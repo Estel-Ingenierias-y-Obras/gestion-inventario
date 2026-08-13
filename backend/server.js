@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const entregaRoutes = require('./routes/entregaRoutes');
 const whitelistRoutes = require('./routes/whitelistRoutes');
+const emailScheduleRoutes = require('./routes/emailScheduleRoutes');
 const WhitelistUser = require('./models/WhitelistUser');
 const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
@@ -32,6 +33,7 @@ app.use(limiter);
 
 app.use('/api/entregas', entregaRoutes);
 app.use('/api/whitelist', whitelistRoutes);
+app.use('/api/email-schedules', emailScheduleRoutes);
 
 app.get('/', (req, res) => {
   res.json({

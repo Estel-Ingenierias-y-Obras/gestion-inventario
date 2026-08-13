@@ -10,6 +10,8 @@ import NuevaEntrega from './pages/NuevaEntrega';
 import Historial from './pages/Historial';
 import Perfil from './pages/Perfil';
 import Configuracion from './pages/Configuracion';
+import UsuariosConfiguracion from './pages/UsuariosConfiguracion';
+import CorreosConfiguracion from './pages/CorreosConfiguracion';
 import NoAutorizado from './pages/NoAutorizado';
 import './App.css';
 
@@ -44,6 +46,8 @@ function App() {
               <Route path="/perfil" element={<Perfil />} />
               <Route element={<AdminRoute />}>
                 <Route path="/configuracion" element={<Configuracion />} />
+                <Route path="/configuracion/usuarios" element={<UsuariosConfiguracion />} />
+                <Route path="/configuracion/correos" element={<CorreosConfiguracion />} />
               </Route>
             </Route>
           </Route>
