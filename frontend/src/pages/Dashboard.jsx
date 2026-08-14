@@ -27,8 +27,7 @@ function Dashboard() {
           setEntregas(entregasResponse.data?.data || []);
           setStats(statsResponse.data?.data || initialStats);
         }
-      } catch (error) {
-        console.error(error);
+      } catch {
         if (isActive) setToast({ type: 'error', message: 'No se pudo cargar el resumen operativo.' });
       } finally {
         if (isActive) setLoading(false);

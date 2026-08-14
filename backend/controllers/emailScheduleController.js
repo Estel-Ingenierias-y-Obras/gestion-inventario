@@ -6,7 +6,7 @@ const { testGraphMail } = require('../services/graphMailService');
 
 const listEmailSchedules = async (req, res, next) => {
   try {
-    const schedules = await EmailSchedule.find().sort({ createdAt: -1 });
+    const schedules = await EmailSchedule.find().sort({ createdAt: -1 }).lean();
     return res.status(200).json({ success: true, data: schedules });
   } catch (error) {
     return next(error);
@@ -55,6 +55,59 @@ const deleteEmailSchedule = async (req, res, next) => {
   }
 };
 
+const scheduleConfiguration = (schedule) => ({
+  email: schedule.email,
+  frequency: schedule.frequency,
+  dayOfWeek: schedule.dayOfWeek,
+  dayOfMonth: schedule.dayOfMonth,
+  hour: schedule.hour,
+  active: schedule.active,
+});
+
+const configurationChanges = (previousConfiguration, currentConfiguration) => Object.fromEntries(
+  Object.keys(currentConfiguration)
+    .filter((key) => previousConfiguration[key] !== currentConfiguration[key])
+    .map((key) => [key, { from: previousConfiguration[key], to: currentConfiguration[key] }])
+);
+
+const updateEmailSchedule = async (req, res, next) => {
+  try {
+    const schedule = await EmailSchedule.findById(req.params.id);
+    if (!schedule) return res.status(404).json({ success: false, message: 'Programación no encontrada.' });
+
+    const previousConfiguration = scheduleConfiguration(schedule);
+    const isWeekly = req.body.frequency === 'weekly';
+    schedule.email = req.body.email;
+    schedule.frequency = req.body.frequency;
+    schedule.dayOfWeek = isWeekly ? req.body.dayOfWeek : null;
+    schedule.dayOfMonth = isWeekly ? null : req.body.dayOfMonth;
+    schedule.hour = req.body.hour;
+    await schedule.save();
+
+    const currentConfiguration = scheduleConfiguration(schedule);
+    await auditLogger({
+      action: 'EMAIL_SCHEDULE_UPDATED',
+      entity: 'EmailSchedule',
+      user: req.user,
+      details: {
+        scheduleId: String(schedule._id),
+        recipientEmail: schedule.email,
+        reportType: schedule.frequency,
+        previousConfiguration,
+        currentConfiguration,
+        changes: configurationChanges(previousConfiguration, currentConfiguration),
+      },
+      req,
+    });
+    return res.status(200).json({ success: true, data: schedule });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, code: 'DUPLICATE_SCHEDULE', message: 'Esta programación ya existe.' });
+    }
+    return next(error);
+  }
+};
+
 const sendScheduledReport = async (req, res, next) => {
   try {
     const schedule = await EmailSchedule.findById(req.params.id);
@@ -85,7 +138,6 @@ const testGraph = async (req, res) => {
     console.error('[GRAPH TEST]', {
       status: error.graphStatus || error.statusCode,
       code: error.graphCode || error.name,
-      message: error.message,
     });
     return res.status(502).json({
       success: false,
@@ -99,5 +151,6 @@ const testGraph = async (req, res) => {
 };
 
 module.exports = {
-  listEmailSchedules, listPendingSchedules, createEmailSchedule, deleteEmailSchedule, sendScheduledReport, testGraph,
+  listEmailSchedules, listPendingSchedules, createEmailSchedule, updateEmailSchedule, deleteEmailSchedule,
+  sendScheduledReport, testGraph,
 };

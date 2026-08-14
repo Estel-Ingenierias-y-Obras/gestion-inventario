@@ -15,6 +15,7 @@ const emailScheduleSchema = new mongoose.Schema(
 );
 
 emailScheduleSchema.index({ active: 1, frequency: 1 });
+emailScheduleSchema.index({ createdAt: -1 });
 emailScheduleSchema.index({ email: 1, frequency: 1, dayOfWeek: 1, dayOfMonth: 1, hour: 1 }, { unique: true });
 
 module.exports = mongoose.model('EmailSchedule', emailScheduleSchema);

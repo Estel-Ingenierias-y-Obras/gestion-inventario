@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import PageShell from '../components/PageShell';
 import LoadingState from '../components/LoadingState';
 import Toast from '../components/Toast';
+import BackToConfiguration from '../components/BackToConfiguration';
 import { addWhitelistUser, deleteWhitelistUser, getWhitelistUsers } from '../services/api';
 
 const emptyForm = { name: '', email: '' };
@@ -54,6 +55,7 @@ function UsuariosConfiguracion() {
 
   return (
     <PageShell title="Usuarios" subtitle="Gestión de usuarios autorizados para acceder a la aplicación" actions={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}>+ Añadir usuario</button>}>
+      <BackToConfiguration />
       <section className="panel"><div className="panel__header panel__header--compact"><div><h2>Whitelist</h2><p>{users.length} usuarios autorizados</p></div></div>
         {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : <div className="table-scroll"><table className="data-table whitelist-table"><thead><tr><th>Nombre</th><th>Email</th><th>Fecha alta</th><th className="actions-column">Acciones</th></tr></thead><tbody>{users.map((user) => <tr key={user._id}><td><strong>{user.name}</strong>{user.isPrimaryAdmin ? <span className="table-secondary">Administrador principal</span> : null}</td><td>{user.email}</td><td>{new Date(user.createdAt).toLocaleDateString()}</td><td className="actions-column"><button className="icon-button icon-button--delete" type="button" disabled={user.isPrimaryAdmin} onClick={() => user.isPrimaryAdmin ? setToast({ type: 'error', message: 'No se puede eliminar el administrador principal' }) : setDeleteTarget(user)} aria-label={`Eliminar a ${user.name}`} title={user.isPrimaryAdmin ? 'El administrador principal no puede eliminarse' : 'Eliminar'}>🗑</button></td></tr>)}</tbody></table></div>}
       </section>

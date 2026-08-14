@@ -20,41 +20,10 @@ api.interceptors.request.use(async (config) => {
     throw new Error('VITE_API_SCOPE no está configurado.');
   }
 
-  let tokenResponse;
-
-  try {
-    console.log('[MSAL] acquireTokenSilent start', {
-      route: window.location.pathname,
-      scopes: apiRequest.scopes,
-      account: account.username,
-    });
-    tokenResponse = await msalInstance.acquireTokenSilent({
-      ...apiRequest,
-      account,
-    });
-    console.log('[MSAL] acquireTokenSilent result', {
-      account: tokenResponse.account?.username || null,
-      scopes: tokenResponse.scopes || [],
-      fromCache: tokenResponse.fromCache,
-    });
-  } catch (tokenError) {
-    console.error('[MSAL] acquireTokenSilent error', {
-      name: tokenError?.name,
-      errorCode: tokenError?.errorCode,
-      subError: tokenError?.subError,
-      message: tokenError?.message,
-      stack: tokenError?.stack,
-    });
-    throw tokenError;
-  }
-
-  if (import.meta.env.VITE_AUTH_DEBUG === 'true') {
-    console.info('[AUTH] Access token obtenido', {
-      obtenido: Boolean(tokenResponse.accessToken),
-      longitud: tokenResponse.accessToken?.length || 0,
-      scopes: tokenResponse.scopes || [],
-    });
-  }
+  const tokenResponse = await msalInstance.acquireTokenSilent({
+    ...apiRequest,
+    account,
+  });
 
   config.headers.Authorization = `Bearer ${tokenResponse.accessToken}`;
   return config;
@@ -72,6 +41,7 @@ export const addWhitelistUser = (payload) => api.post('/api/whitelist', payload)
 export const deleteWhitelistUser = (id) => api.delete(`/api/whitelist/${id}`);
 export const getEmailSchedules = () => api.get('/api/email-schedules');
 export const addEmailSchedule = (payload) => api.post('/api/email-schedules', payload);
+export const updateEmailSchedule = (id, payload) => api.put(`/api/email-schedules/${id}`, payload);
 export const deleteEmailSchedule = (id) => api.delete(`/api/email-schedules/${id}`);
 export const sendEmailSchedule = (id) => api.post(`/api/email-schedules/${id}/send?force=true`);
 

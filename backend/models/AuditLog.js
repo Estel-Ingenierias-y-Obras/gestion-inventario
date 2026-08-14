@@ -25,10 +25,12 @@ const auditLogSchema = new mongoose.Schema(
     ipAddress: {
       type: String,
       default: '',
+      maxlength: 100,
     },
     userAgent: {
       type: String,
       default: '',
+      maxlength: 500,
     },
     createdAt: {
       type: Date,
@@ -42,5 +44,7 @@ const auditLogSchema = new mongoose.Schema(
 
 auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ entity: 1, action: 1 });
+auditLogSchema.index({ action: 1, createdAt: -1 });
+auditLogSchema.index({ 'user.email': 1, createdAt: -1 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

@@ -1,5 +1,15 @@
-const errorHandler = (err, req, res, next) => {
-  console.error('[ERROR]', err.message);
+const errorHandler = (err, req, res, _next) => {
+  const statusCode = err.statusCode || err.status || 500;
+  const logEntry = { name: err.name || 'Error', statusCode };
+  if (process.env.NODE_ENV !== 'production') logEntry.message = err.message;
+  console.error('[ERROR]', logEntry);
+
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({
+      success: false,
+      message: 'JSON inválido.',
+    });
+  }
 
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -15,8 +25,6 @@ const errorHandler = (err, req, res, next) => {
       message: 'Identificador inválido.',
     });
   }
-
-  const statusCode = err.statusCode || 500;
 
   return res.status(statusCode).json({
     success: false,

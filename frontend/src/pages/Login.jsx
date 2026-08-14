@@ -8,23 +8,12 @@ function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('[LOGIN] authentication state', {
-      isAuthenticated,
-      route: window.location.pathname,
-    });
-
     if (isAuthenticated) {
-      console.log('[LOGIN] navigating to dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   const handleLogin = () => {
-    console.log('[LOGIN] loginRedirect called', {
-      route: window.location.pathname,
-      scopes: loginRequest.scopes,
-      timestamp: new Date().toISOString(),
-    });
     msalInstance.loginRedirect(loginRequest);
   };
 

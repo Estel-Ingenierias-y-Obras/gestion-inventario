@@ -16,10 +16,11 @@ const whitelistUserSchema = new mongoose.Schema(
       lowercase: true,
       maxlength: 254,
       unique: true,
-      index: true,
     },
   },
   { timestamps: true }
 );
+
+whitelistUserSchema.index({ createdAt: 1 });
 
 module.exports = mongoose.model('WhitelistUser', whitelistUserSchema);

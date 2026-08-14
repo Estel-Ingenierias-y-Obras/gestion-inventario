@@ -1,4 +1,4 @@
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 
 const createEmailScheduleValidator = [
   body('email').trim().isEmail().normalizeEmail().withMessage('Introduce un correo electrónico válido.'),
@@ -15,5 +15,13 @@ const createEmailScheduleValidator = [
 ];
 
 const emailScheduleIdValidator = [param('id').isMongoId().withMessage('Identificador de programación no válido.')];
+const sendEmailScheduleValidator = [
+  ...emailScheduleIdValidator,
+  query('force').optional().isIn(['true', 'false']).withMessage('El parámetro force debe ser true o false.'),
+];
 
-module.exports = { createEmailScheduleValidator, emailScheduleIdValidator };
+const updateEmailScheduleValidator = [...emailScheduleIdValidator, ...createEmailScheduleValidator];
+
+module.exports = {
+  createEmailScheduleValidator, updateEmailScheduleValidator, emailScheduleIdValidator, sendEmailScheduleValidator,
+};

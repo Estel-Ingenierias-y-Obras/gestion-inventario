@@ -5,7 +5,6 @@ const tenantId = process.env.AZURE_TENANT_ID;
 const audience = process.env.AZURE_AUDIENCE || process.env.AZURE_CLIENT_ID;
 const v1Issuer = tenantId ? `https://sts.windows.net/${tenantId}/` : null;
 const v2Issuer = tenantId ? `https://login.microsoftonline.com/${tenantId}/v2.0` : null;
-const authDebug = process.env.AUTH_DEBUG === 'true';
 
 if (!tenantId || !audience) {
   console.warn('[AUTH] AZURE_TENANT_ID and AZURE_CLIENT_ID/AUDIENCE should be configured for Entra ID validation.');
@@ -62,15 +61,6 @@ const extractUserInfo = (claims) => ({
   oid: claims.oid || '',
 });
 
-const logJwtDiagnostic = (decoded) => {
-  console.log('JWT AUD', decoded?.aud);
-  console.log('JWT ISS', decoded?.iss);
-  console.log('JWT TID', decoded?.tid);
-  console.log('JWT SCP', decoded?.scp);
-  console.log('CONFIG AUD', audience);
-  console.log('CONFIG TENANT', tenantId);
-};
-
 const authenticate = async (req, res, next) => {
   const token = getBearerToken(req);
 
@@ -84,7 +74,6 @@ const authenticate = async (req, res, next) => {
   const decoded = jwt.decode(token);
 
   if (!tenantId || !audience) {
-    logJwtDiagnostic(decoded);
     return res.status(403).json({
       success: false,
       message: 'La configuración de autenticación de Microsoft Entra ID no está disponible para validar el token.',
@@ -98,7 +87,6 @@ const authenticate = async (req, res, next) => {
     const expectedIssuer = tokenVersion === '1.0' ? v1Issuer : v2Issuer;
 
     if (!kid) {
-      logJwtDiagnostic(decoded);
       return res.status(403).json({
         success: false,
         message: 'El token no contiene un identificador de firma válido.',
@@ -127,17 +115,7 @@ const authenticate = async (req, res, next) => {
       );
     });
 
-    if (authDebug) {
-      console.info('[AUTH] Claims JWT verificados', {
-        aud: verifiedClaims.aud,
-        scp: verifiedClaims.scp,
-        oid: verifiedClaims.oid,
-        name: verifiedClaims.name,
-      });
-    }
-
     if (verifiedClaims.tid !== tenantId) {
-      logJwtDiagnostic(decoded);
       return res.status(403).json({
         success: false,
         message: 'El token pertenece a un tenant no autorizado.',
@@ -146,7 +124,6 @@ const authenticate = async (req, res, next) => {
 
     const scopes = String(verifiedClaims.scp || '').split(' ').filter(Boolean);
     if (!scopes.includes('access_as_user')) {
-      logJwtDiagnostic(decoded);
       return res.status(403).json({
         success: false,
         message: 'El token no contiene el permiso access_as_user.',
@@ -156,8 +133,7 @@ const authenticate = async (req, res, next) => {
     req.user = extractUserInfo(verifiedClaims);
     return next();
   } catch (error) {
-    logJwtDiagnostic(decoded);
-    console.error('JWT VALIDATION ERROR', error);
+    console.warn('[AUTH] Validación JWT fallida.', { name: error.name });
     return res.status(403).json({
       success: false,
       message: 'El token no es válido o ha expirado.',

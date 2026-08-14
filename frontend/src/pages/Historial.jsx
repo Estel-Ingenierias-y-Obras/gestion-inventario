@@ -42,8 +42,7 @@ function Historial() {
           setEntregas(response.data?.data || []);
           setPagination(response.data?.pagination || emptyPagination);
         }
-      } catch (error) {
-        console.error(error);
+      } catch {
         if (isActive) setToast({ type: 'error', message: 'Error al realizar la operación.' });
       } finally {
         if (isActive) setLoading(false);
@@ -85,8 +84,7 @@ function Historial() {
       } else {
         setRefreshKey((current) => current + 1);
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       setToast({ type: 'error', message: 'Error al realizar la operación.' });
     } finally {
       setDeleting(false);

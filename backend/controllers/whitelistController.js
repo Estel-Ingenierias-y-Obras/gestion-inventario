@@ -13,13 +13,13 @@ const getAccessStatus = (req, res) => res.status(200).json({
 
 const listWhitelistUsers = async (req, res, next) => {
   try {
-    const users = await WhitelistUser.find().sort({ createdAt: 1 });
+    const users = await WhitelistUser.find().sort({ createdAt: 1 }).lean();
     const adminEmail = getAdminEmail();
 
     return res.status(200).json({
       success: true,
       data: users.map((user) => ({
-        ...user.toObject(),
+        ...user,
         isPrimaryAdmin: user.email === adminEmail,
       })),
     });

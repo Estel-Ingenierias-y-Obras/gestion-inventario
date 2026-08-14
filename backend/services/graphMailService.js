@@ -1,6 +1,7 @@
 const GRAPH_SCOPE = 'https://graph.microsoft.com/.default';
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 let tokenCache = null;
+let tokenRequest = null;
 
 const getGraphConfig = () => {
   const required = ['GRAPH_TENANT_ID', 'GRAPH_CLIENT_ID', 'GRAPH_CLIENT_SECRET', 'GRAPH_SENDER'];
@@ -27,34 +28,43 @@ const requestWithTimeout = async (url, options, milliseconds = 30000) => {
 
 const getApplicationToken = async () => {
   if (tokenCache?.expiresAt > Date.now() + 60000) return tokenCache.accessToken;
+  if (tokenRequest) return tokenRequest;
 
-  const config = getGraphConfig();
-  const body = new URLSearchParams({
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
-    scope: GRAPH_SCOPE,
-    grant_type: 'client_credentials',
-  });
-  const response = await requestWithTimeout(
-    `https://login.microsoftonline.com/${encodeURIComponent(config.tenantId)}/oauth2/v2.0/token`,
-    { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body },
-    20000
-  );
-  const payload = await response.json();
-  if (!response.ok || !payload.access_token) {
-    console.error('[GRAPH AUTH]', { status: response.status, code: payload.error || 'TOKEN_REQUEST_FAILED' });
-    const error = new Error('No se pudo obtener el token de aplicación para Microsoft Graph.');
-    error.statusCode = 502;
-    error.graphStatus = response.status;
-    error.graphCode = payload.error || 'TOKEN_REQUEST_FAILED';
-    throw error;
+  tokenRequest = (async () => {
+    const config = getGraphConfig();
+    const body = new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      scope: GRAPH_SCOPE,
+      grant_type: 'client_credentials',
+    });
+    const response = await requestWithTimeout(
+      `https://login.microsoftonline.com/${encodeURIComponent(config.tenantId)}/oauth2/v2.0/token`,
+      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body },
+      20000
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.access_token) {
+      console.error('[GRAPH AUTH]', { status: response.status, code: payload.error || 'TOKEN_REQUEST_FAILED' });
+      const error = new Error('No se pudo obtener el token de aplicación para Microsoft Graph.');
+      error.statusCode = 502;
+      error.graphStatus = response.status;
+      error.graphCode = payload.error || 'TOKEN_REQUEST_FAILED';
+      throw error;
+    }
+
+    tokenCache = {
+      accessToken: payload.access_token,
+      expiresAt: Date.now() + (Number(payload.expires_in || 3600) * 1000),
+    };
+    return tokenCache.accessToken;
+  })();
+
+  try {
+    return await tokenRequest;
+  } finally {
+    tokenRequest = null;
   }
-
-  tokenCache = {
-    accessToken: payload.access_token,
-    expiresAt: Date.now() + (Number(payload.expires_in || 3600) * 1000),
-  };
-  return tokenCache.accessToken;
 };
 
 const sendGraphMail = async ({ to, subject, html, idempotencyKey = '' }) => {
@@ -92,8 +102,6 @@ const sendGraphMail = async ({ to, subject, html, idempotencyKey = '' }) => {
 };
 
 const testGraphMail = async () => {
-  const accessToken = await getApplicationToken();
-  const tokenPayload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8'));
   const delivery = await sendGraphMail({
     to: 'javier.costa@esteling.com',
     subject: 'Prueba Microsoft Graph - Gestión de Inventario',
@@ -102,12 +110,6 @@ const testGraphMail = async () => {
   });
 
   return {
-    token: {
-      audience: tokenPayload.aud || '',
-      tenantId: tokenPayload.tid || '',
-      applicationId: tokenPayload.appid || tokenPayload.azp || '',
-      roles: tokenPayload.roles || [],
-    },
     delivery: { ...delivery, to: 'javier.costa@esteling.com' },
   };
 };
