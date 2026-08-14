@@ -6,6 +6,7 @@ const weekdayNumbers = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 
 const LOCK_MS = 30 * 60 * 1000;
 
 const daysInMonth = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+const getEffectiveFrom = (schedule) => schedule.effectiveFrom || schedule.createdAt;
 
 const getLatestOccurrence = (schedule, now = new Date()) => {
   const parts = getZonedParts(now);
@@ -58,7 +59,7 @@ const claimRun = async (schedule, periodKey, now) => {
 const listPendingEmailSchedules = async (now = new Date()) => {
   const schedules = await EmailSchedule.find({ active: true });
   const candidates = schedules.map((schedule) => ({ schedule, ...getLatestOccurrence(schedule, now) }))
-    .filter(({ schedule, occurrence }) => !schedule.createdAt || occurrence >= schedule.createdAt);
+    .filter(({ schedule, occurrence }) => !getEffectiveFrom(schedule) || occurrence >= getEffectiveFrom(schedule));
   const existingRuns = candidates.length ? await EmailReportRun.find({
     $or: candidates.map(({ schedule, periodKey }) => ({ schedule: schedule._id, periodKey })),
   }).lean() : [];
@@ -81,7 +82,8 @@ const listPendingEmailSchedules = async (now = new Date()) => {
 
 const sendPendingEmailSchedule = async (schedule, { user, req, now = new Date() }) => {
   const { occurrence, periodKey } = getLatestOccurrence(schedule, now);
-  if (schedule.createdAt && occurrence < schedule.createdAt) {
+  const effectiveFrom = getEffectiveFrom(schedule);
+  if (effectiveFrom && occurrence < effectiveFrom) {
     return { sent: false, reason: 'NOT_DUE', periodKey };
   }
   const run = await claimRun(schedule, periodKey, now);
@@ -89,7 +91,7 @@ const sendPendingEmailSchedule = async (schedule, { user, req, now = new Date() 
 
   try {
     const report = await sendEmailReport(schedule, {
-      user, req, reportDate: occurrence, reportPeriod: periodKey,
+      user, req, reportDate: now, reportPeriod: periodKey,
       idempotencyKey: `email-schedule:${schedule._id}:${periodKey}`,
     });
     run.status = 'sent'; run.sentAt = new Date(); run.lockedUntil = null;

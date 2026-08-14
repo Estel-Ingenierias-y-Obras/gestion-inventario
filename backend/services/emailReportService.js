@@ -28,19 +28,28 @@ const zonedDateToUtc = (year, month, day, hour = 0, minute = 0) => {
 };
 
 const getReportRange = (frequency, now = new Date()) => {
-  if (frequency === 'weekly') return { start: new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)), end: now };
-
   const parts = getZonedParts(now);
-  const currentMonthStart = zonedDateToUtc(Number(parts.year), Number(parts.month), 1);
-  const previousMonthDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 2, 1));
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+
+  if (frequency === 'weekly') {
+    const weekday = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }[parts.weekday];
+    const monday = new Date(Date.UTC(year, month - 1, day - (weekday - 1)));
+    return {
+      start: zonedDateToUtc(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate()),
+      end: now,
+    };
+  }
+
   return {
-    start: zonedDateToUtc(previousMonthDate.getUTCFullYear(), previousMonthDate.getUTCMonth() + 1, 1),
-    end: currentMonthStart,
+    start: zonedDateToUtc(year, month, 1),
+    end: now,
   };
 };
 
 const buildReportHtml = (deliveries, frequency) => {
-  const label = frequency === 'weekly' ? 'Últimos 7 días' : 'Mes natural completo';
+  const label = frequency === 'weekly' ? 'Semana actual' : 'Mes actual';
   const rows = deliveries.map((delivery) => `<tr>
     <td>${escapeHtml(new Date(delivery.fechaEntrega).toLocaleDateString('es-ES', { timeZone: REPORT_TIMEZONE }))}</td>
     <td>${escapeHtml(delivery.material)}</td><td>${escapeHtml(delivery.modelo)}</td>
@@ -58,7 +67,7 @@ const buildReportHtml = (deliveries, frequency) => {
 
 const sendEmailReport = async (schedule, { user = null, req = null, reportDate = new Date(), reportPeriod = '', idempotencyKey = '' } = {}) => {
   const range = getReportRange(schedule.frequency, reportDate);
-  const deliveries = await Entrega.find({ deleted: false, fechaEntrega: { $gte: range.start, $lt: range.end } })
+  const deliveries = await Entrega.find({ deleted: false, fechaEntrega: { $gte: range.start, $lte: range.end } })
     .sort({ fechaEntrega: -1 }).lean();
 
   await sendGraphMail({

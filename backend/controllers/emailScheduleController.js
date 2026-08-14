@@ -62,6 +62,7 @@ const scheduleConfiguration = (schedule) => ({
   dayOfMonth: schedule.dayOfMonth,
   hour: schedule.hour,
   active: schedule.active,
+  effectiveFrom: schedule.effectiveFrom,
 });
 
 const configurationChanges = (previousConfiguration, currentConfiguration) => Object.fromEntries(
@@ -82,6 +83,7 @@ const updateEmailSchedule = async (req, res, next) => {
     schedule.dayOfWeek = isWeekly ? req.body.dayOfWeek : null;
     schedule.dayOfMonth = isWeekly ? null : req.body.dayOfMonth;
     schedule.hour = req.body.hour;
+    schedule.effectiveFrom = new Date();
     await schedule.save();
 
     const currentConfiguration = scheduleConfiguration(schedule);

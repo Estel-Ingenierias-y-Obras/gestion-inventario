@@ -9,6 +9,7 @@ const emailScheduleSchema = new mongoose.Schema(
     hour: { type: String, required: true, match: /^([01]\d|2[0-3]):[0-5]\d$/ },
     active: { type: Boolean, default: true },
     createdBy: { type: String, required: true, trim: true, lowercase: true, maxlength: 254 },
+    effectiveFrom: { type: Date, default: Date.now },
     lastSentAt: { type: Date, default: null },
   },
   { timestamps: true, collection: 'emailSchedules' }
