@@ -12,6 +12,7 @@ const WhitelistUser = require('./models/WhitelistUser');
 const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimiters');
+const migrateLegacyMaterialOrders = require('./services/materialOrderMigration');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -55,6 +56,7 @@ app.use(errorHandler);
 
 const startServer = async () => {
   await connectDB();
+  await migrateLegacyMaterialOrders();
 
   const adminEmail = getAdminEmail();
   if (!adminEmail) {

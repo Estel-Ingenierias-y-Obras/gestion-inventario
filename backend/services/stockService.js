@@ -1,8 +1,9 @@
 const MaterialOrder = require('../models/MaterialOrder');
 
-const consumeStockFIFO = async ({ producto, cantidad, session, consumedAt = new Date() }) => {
+const consumeStockFIFO = async ({ material, modelo, cantidad, session, consumedAt = new Date() }) => {
   const orders = await MaterialOrder.find({
-    producto,
+    material,
+    modelo,
     recibido: true,
     activo: true,
     cantidadDisponible: { $gt: 0 },
@@ -33,8 +34,10 @@ const consumeStockFIFO = async ({ producto, cantidad, session, consumedAt = new 
     }
     await order.save({ session });
     movements.push({
-      materialOrderId: String(order._id), numeroCompra: order.numeroCompra,
-      producto: order.producto, consumed, remainingStock: order.cantidadDisponible, depleted,
+      materialOrderId: String(order._id), numeroPedido: order.numeroPedido,
+      material: order.material, modelo: order.modelo,
+      previousStock: order.cantidadDisponible + consumed,
+      consumed, remainingStock: order.cantidadDisponible, depleted,
     });
   }
 

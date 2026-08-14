@@ -2,19 +2,25 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { useAccess } from '../context/AccessContext';
 
-const baseNavItems = [
+const dailyItems = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/entregas/nueva', label: 'Nueva entrega' },
+  { to: '/historial', label: 'Historial' },
+];
+
+const stockItems = [
   { to: '/registro-material', label: 'Registro de material' },
   { to: '/almacen', label: 'Almacén' },
-  { to: '/historial', label: 'Historial' },
-  { to: '/perfil', label: 'Perfil' },
 ];
 
 function Layout() {
   const { accounts, instance } = useMsal();
   const { isAdmin } = useAccess();
-  const navItems = isAdmin ? [...baseNavItems, { to: '/configuracion', label: 'Configuración' }] : baseNavItems;
+  const personalItems = [
+    ...(isAdmin ? [{ to: '/configuracion', label: 'Configuración' }] : []),
+    { to: '/perfil', label: 'Perfil' },
+  ];
+  const navGroups = [dailyItems, stockItems, personalItems];
   const userName = accounts[0]?.name || 'Usuario';
   const userEmail = accounts[0]?.username || 'usuario@empresa.com';
 
@@ -34,14 +40,18 @@ function Layout() {
         </div>
 
         <nav className="main-nav" aria-label="Navegación principal">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `main-nav__link${isActive ? ' main-nav__link--active' : ''}`}
-            >
-              {item.label}
-            </NavLink>
+          {navGroups.map((items, groupIndex) => (
+            <div className="main-nav__group" key={groupIndex}>
+              {items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `main-nav__link${isActive ? ' main-nav__link--active' : ''}`}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 

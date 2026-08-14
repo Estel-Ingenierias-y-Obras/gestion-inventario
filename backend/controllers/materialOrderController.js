@@ -21,16 +21,39 @@ const listDepletedMaterialOrders = async (req, res, next) => {
   }
 };
 
+const listStockCatalog = async (req, res, next) => {
+  try {
+    const stock = await MaterialOrder.aggregate([
+      { $match: { activo: true, recibido: true, cantidadDisponible: { $gt: 0 } } },
+      {
+        $group: {
+          _id: { material: '$material', modelo: '$modelo' },
+          cantidadDisponible: { $sum: '$cantidadDisponible' },
+        },
+      },
+      {
+        $project: {
+          _id: 0, material: '$_id.material', modelo: '$_id.modelo', cantidadDisponible: 1,
+        },
+      },
+      { $sort: { material: 1, modelo: 1 } },
+    ]).collation({ locale: 'es', strength: 2 });
+    return res.status(200).json({ success: true, data: stock });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const createMaterialOrder = async (req, res, next) => {
   try {
     const cantidadInicial = Number(req.body.cantidadInicial);
     const order = await MaterialOrder.create({
-      numeroCompra: req.body.numeroCompra,
-      producto: req.body.producto,
+      material: req.body.material,
+      modelo: req.body.modelo,
+      numeroPedido: req.body.numeroPedido,
       cantidadInicial,
       cantidadDisponible: cantidadInicial,
-      proveedor: req.body.proveedor || '',
-      recibido: Boolean(req.body.recibido),
+      recibido: true,
       activo: true,
       createdBy: req.user.email,
     });
@@ -40,8 +63,8 @@ const createMaterialOrder = async (req, res, next) => {
       entity: 'MaterialOrder',
       user: req.user,
       details: {
-        materialOrderId: String(order._id), numeroCompra: order.numeroCompra,
-        producto: order.producto, cantidadInicial: order.cantidadInicial, recibido: order.recibido,
+        materialOrderId: String(order._id), numeroPedido: order.numeroPedido,
+        material: order.material, modelo: order.modelo, cantidadInicial: order.cantidadInicial,
       },
       req,
     });
@@ -66,8 +89,8 @@ const markMaterialOrderReceived = async (req, res, next) => {
       entity: 'MaterialOrder',
       user: req.user,
       details: {
-        materialOrderId: String(order._id), numeroCompra: order.numeroCompra,
-        producto: order.producto, recibido: order.recibido,
+        materialOrderId: String(order._id), numeroPedido: order.numeroPedido,
+        material: order.material, modelo: order.modelo, recibido: order.recibido,
       },
       req,
     });
@@ -79,5 +102,6 @@ const markMaterialOrderReceived = async (req, res, next) => {
 };
 
 module.exports = {
-  listMaterialOrders, listDepletedMaterialOrders, createMaterialOrder, markMaterialOrderReceived,
+  listMaterialOrders, listDepletedMaterialOrders, listStockCatalog,
+  createMaterialOrder, markMaterialOrderReceived,
 };

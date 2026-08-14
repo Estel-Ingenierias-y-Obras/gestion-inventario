@@ -25,8 +25,8 @@ function HistorialPedidos() {
       <section className="panel">
         <div className="panel__header panel__header--compact"><div><h2>Pedidos agotados</h2><p>{orders.length} pedidos completados</p></div></div>
         {loading ? <div className="panel__body"><LoadingState rows={6} /></div> : orders.length === 0 ? <div className="empty-state"><strong>No hay pedidos agotados.</strong></div> : (
-          <div className="table-scroll"><table className="data-table warehouse-history-table"><thead><tr><th>N.º compra</th><th>Producto</th><th>Cantidad inicial</th><th>Fecha creación</th><th>Fecha agotado</th></tr></thead><tbody>{orders.map((order) => (
-            <tr key={order._id}><td><strong>{order.numeroCompra}</strong></td><td>{order.producto}</td><td>{order.cantidadInicial}</td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td><td>{order.agotadoAt ? new Date(order.agotadoAt).toLocaleString('es-ES') : '—'}</td></tr>
+          <div className="table-scroll"><table className="data-table warehouse-history-table"><thead><tr><th>N.º pedido</th><th>Material</th><th>Modelo</th><th>Cantidad inicial</th><th>Fecha creación</th><th>Fecha agotado</th></tr></thead><tbody>{orders.map((order) => (
+            <tr key={order._id}><td><strong>{order.numeroPedido}</strong></td><td>{order.material}</td><td>{order.modelo}</td><td>{order.cantidadInicial}</td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td><td>{order.agotadoAt ? new Date(order.agotadoAt).toLocaleString('es-ES') : '—'}</td></tr>
           ))}</tbody></table></div>
         )}
       </section>

@@ -60,7 +60,8 @@ const crearEntrega = async (req, res, next) => {
     let stockMovements = [];
     await session.withTransaction(async () => {
       stockMovements = await consumeStockFIFO({
-        producto: datosLimpiados.material,
+        material: datosLimpiados.material,
+        modelo: datosLimpiados.modelo,
         cantidad: datosLimpiados.cantidad,
         session,
       });
@@ -80,11 +81,26 @@ const crearEntrega = async (req, res, next) => {
       entity: 'MaterialOrder',
       user: req.user,
       details: {
-        entregaId: String(entregaGuardada._id), producto: datosLimpiados.material,
-        cantidad: datosLimpiados.cantidad, movements: stockMovements,
+        entregaId: String(entregaGuardada._id), material: datosLimpiados.material,
+        modelo: datosLimpiados.modelo, cantidad: datosLimpiados.cantidad, movements: stockMovements,
       },
       req,
     });
+
+    for (const movement of stockMovements) {
+      await auditLogger({
+        action: 'STOCK_UPDATED',
+        entity: 'MaterialOrder',
+        user: req.user,
+        details: {
+          entregaId: String(entregaGuardada._id), material: datosLimpiados.material,
+          modelo: datosLimpiados.modelo, stockAnterior: movement.previousStock,
+          stockNuevo: movement.remainingStock, cantidadEntregada: movement.consumed,
+          materialOrderId: movement.materialOrderId, numeroPedido: movement.numeroPedido,
+        },
+        req,
+      });
+    }
 
     for (const movement of stockMovements.filter((item) => item.depleted)) {
       await auditLogger({
