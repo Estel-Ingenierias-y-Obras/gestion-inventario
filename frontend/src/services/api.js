@@ -44,5 +44,9 @@ export const addEmailSchedule = (payload) => api.post('/api/email-schedules', pa
 export const updateEmailSchedule = (id, payload) => api.put(`/api/email-schedules/${id}`, payload);
 export const deleteEmailSchedule = (id) => api.delete(`/api/email-schedules/${id}`);
 export const sendEmailSchedule = (id) => api.post(`/api/email-schedules/${id}/send?force=true`);
+export const getMaterialOrders = () => api.get('/api/material-orders');
+export const getMaterialOrderHistory = () => api.get('/api/material-orders/history');
+export const createMaterialOrder = (payload) => api.post('/api/material-orders', payload);
+export const markMaterialOrderReceived = (id) => api.patch(`/api/material-orders/${id}/received`);
 
 export default api;

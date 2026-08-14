@@ -5,6 +5,8 @@ import { useAccess } from '../context/AccessContext';
 const baseNavItems = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/entregas/nueva', label: 'Nueva entrega' },
+  { to: '/registro-material', label: 'Registro de material' },
+  { to: '/almacen', label: 'Almacén' },
   { to: '/historial', label: 'Historial' },
   { to: '/perfil', label: 'Perfil' },
 ];

@@ -7,6 +7,7 @@ const connectDB = require('./config/db');
 const entregaRoutes = require('./routes/entregaRoutes');
 const whitelistRoutes = require('./routes/whitelistRoutes');
 const emailScheduleRoutes = require('./routes/emailScheduleRoutes');
+const materialOrderRoutes = require('./routes/materialOrderRoutes');
 const WhitelistUser = require('./models/WhitelistUser');
 const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
@@ -31,7 +32,7 @@ app.use(cors({
     error.statusCode = 403;
     return callback(error);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Automation-Key'],
   maxAge: 86400,
 }));
@@ -41,6 +42,7 @@ app.use('/api', apiLimiter);
 app.use('/api/entregas', entregaRoutes);
 app.use('/api/whitelist', whitelistRoutes);
 app.use('/api/email-schedules', emailScheduleRoutes);
+app.use('/api/material-orders', materialOrderRoutes);
 
 app.get('/', apiLimiter, (req, res) => {
   res.json({

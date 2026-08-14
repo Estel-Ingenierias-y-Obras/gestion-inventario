@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Entrega = require('../models/Entrega');
 const auditLogger = require('../utils/auditLogger');
+const { consumeStockFIFO } = require('../services/stockService');
+const { sendDeliveryNotification } = require('../services/deliveryNotificationService');
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return '';
@@ -38,6 +41,7 @@ const buildEntregaFilter = ({ period, search }) => {
 };
 
 const crearEntrega = async (req, res, next) => {
+  const session = await mongoose.startSession();
   try {
     const { material, modelo, cantidad, receptor, departamento } = req.body;
     const usuario = req.user || {};
@@ -49,9 +53,19 @@ const crearEntrega = async (req, res, next) => {
       receptor: normalizeString(receptor),
       departamento: normalizeString(departamento),
       entregadoPor,
+      createdBy: usuario.email || '',
     };
 
-    const entregaGuardada = await Entrega.create(datosLimpiados);
+    let entregaGuardada;
+    let stockMovements = [];
+    await session.withTransaction(async () => {
+      stockMovements = await consumeStockFIFO({
+        producto: datosLimpiados.material,
+        cantidad: datosLimpiados.cantidad,
+        session,
+      });
+      [entregaGuardada] = await Entrega.create([datosLimpiados], { session });
+    });
 
     await auditLogger({
       action: 'CREATE',
@@ -61,9 +75,40 @@ const crearEntrega = async (req, res, next) => {
       req,
     });
 
-    return res.status(201).json({ success: true, data: entregaGuardada });
+    await auditLogger({
+      action: 'STOCK_CONSUMED',
+      entity: 'MaterialOrder',
+      user: req.user,
+      details: {
+        entregaId: String(entregaGuardada._id), producto: datosLimpiados.material,
+        cantidad: datosLimpiados.cantidad, movements: stockMovements,
+      },
+      req,
+    });
+
+    for (const movement of stockMovements.filter((item) => item.depleted)) {
+      await auditLogger({
+        action: 'MATERIAL_ORDER_DEPLETED',
+        entity: 'MaterialOrder',
+        user: req.user,
+        details: { ...movement, entregaId: String(entregaGuardada._id) },
+        req,
+      });
+    }
+
+    let notificationSent = true;
+    try {
+      await sendDeliveryNotification(entregaGuardada);
+    } catch (notificationError) {
+      notificationSent = false;
+      console.error('[DELIVERY NOTIFICATION] No se pudo enviar el correo.', { name: notificationError.name });
+    }
+
+    return res.status(201).json({ success: true, data: entregaGuardada, notificationSent });
   } catch (error) {
-    next(error);
+    return next(error);
+  } finally {
+    await session.endSession();
   }
 };
 
