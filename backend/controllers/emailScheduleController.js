@@ -1,13 +1,28 @@
 const EmailSchedule = require('../models/EmailSchedule');
 const auditLogger = require('../utils/auditLogger');
 const { sendEmailReport } = require('../services/emailReportService');
-const { listPendingEmailSchedules, sendPendingEmailSchedule } = require('../services/emailScheduleProcessor');
+const {
+  getNextOccurrence, listPendingEmailSchedules, sendPendingEmailSchedule,
+} = require('../services/emailScheduleProcessor');
 const { testGraphMail } = require('../services/graphMailService');
 
 const listEmailSchedules = async (req, res, next) => {
   try {
-    const schedules = await EmailSchedule.find().sort({ createdAt: -1 }).lean();
-    return res.status(200).json({ success: true, data: schedules });
+    const now = new Date();
+    const [schedules, pendingSchedules] = await Promise.all([
+      EmailSchedule.find().sort({ createdAt: -1 }).lean(),
+      listPendingEmailSchedules(now),
+    ]);
+    const pendingById = new Map(pendingSchedules.map((schedule) => [String(schedule._id), schedule]));
+    const data = schedules.map((schedule) => {
+      const pending = pendingById.get(String(schedule._id));
+      return {
+        ...schedule,
+        operationalStatus: !schedule.active ? 'inactive' : pending ? 'pending' : 'active',
+        nextExecution: !schedule.active ? null : pending?.scheduledFor || getNextOccurrence(schedule, now),
+      };
+    });
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     return next(error);
   }

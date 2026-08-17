@@ -35,6 +35,42 @@ const getLatestOccurrence = (schedule, now = new Date()) => {
   return { occurrence, periodKey: `monthly:${occurrenceParts.year}-${occurrenceParts.month}` };
 };
 
+const getNextOccurrence = (schedule, now = new Date()) => {
+  const parts = getZonedParts(now);
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const [hour, minute] = schedule.hour.split(':').map(Number);
+
+  if (schedule.frequency === 'weekly') {
+    const daysAhead = (schedule.dayOfWeek - weekdayNumbers[parts.weekday] + 7) % 7;
+    let localCandidate = new Date(Date.UTC(year, month - 1, day + daysAhead));
+    let occurrence = zonedDateToUtc(
+      localCandidate.getUTCFullYear(), localCandidate.getUTCMonth() + 1, localCandidate.getUTCDate(), hour, minute
+    );
+    if (occurrence <= now) {
+      localCandidate = new Date(Date.UTC(
+        localCandidate.getUTCFullYear(), localCandidate.getUTCMonth(), localCandidate.getUTCDate() + 7
+      ));
+      occurrence = zonedDateToUtc(
+        localCandidate.getUTCFullYear(), localCandidate.getUTCMonth() + 1, localCandidate.getUTCDate(), hour, minute
+      );
+    }
+    return occurrence;
+  }
+
+  const scheduledDay = Math.min(schedule.dayOfMonth, daysInMonth(year, month));
+  let occurrence = zonedDateToUtc(year, month, scheduledDay, hour, minute);
+  if (occurrence <= now) {
+    const nextMonth = new Date(Date.UTC(year, month, 1));
+    const nextYear = nextMonth.getUTCFullYear();
+    const nextMonthNumber = nextMonth.getUTCMonth() + 1;
+    const nextDay = Math.min(schedule.dayOfMonth, daysInMonth(nextYear, nextMonthNumber));
+    occurrence = zonedDateToUtc(nextYear, nextMonthNumber, nextDay, hour, minute);
+  }
+  return occurrence;
+};
+
 const claimRun = async (schedule, periodKey, now) => {
   try {
     return await EmailReportRun.create({
@@ -104,4 +140,4 @@ const sendPendingEmailSchedule = async (schedule, { user, req, now = new Date() 
   }
 };
 
-module.exports = { getLatestOccurrence, listPendingEmailSchedules, sendPendingEmailSchedule };
+module.exports = { getLatestOccurrence, getNextOccurrence, listPendingEmailSchedules, sendPendingEmailSchedule };

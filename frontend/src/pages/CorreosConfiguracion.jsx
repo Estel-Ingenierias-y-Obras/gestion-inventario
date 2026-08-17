@@ -18,6 +18,17 @@ const toPayload = (form) => ({
   dayOfWeek: form.frequency === 'weekly' ? Number(form.dayOfWeek) : null,
   dayOfMonth: form.frequency === 'monthly' ? Number(form.dayOfMonth) : null,
 });
+const formatScheduleDate = (value, fallback = '—') => value
+  ? new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(value))
+  : fallback;
+const statusLabels = {
+  active: { label: 'Activo', icon: '●' },
+  pending: { label: 'Pendiente', icon: '●' },
+  inactive: { label: 'Inactivo', icon: '●' },
+};
 
 function CorreosConfiguracion() {
   const [schedules, setSchedules] = useState([]);
@@ -81,6 +92,7 @@ function CorreosConfiguracion() {
     finally { setBusyId(null); }
   };
   const dayLabel = (schedule) => schedule.frequency === 'weekly' ? days[schedule.dayOfWeek - 1] : `Día ${schedule.dayOfMonth}`;
+  const scheduleStatus = (schedule) => statusLabels[schedule.operationalStatus] || statusLabels.inactive;
   const isEditing = modalMode === 'edit';
 
   return (
@@ -89,8 +101,8 @@ function CorreosConfiguracion() {
       <section className="panel">
         <div className="panel__header panel__header--compact"><div><h2>Programaciones</h2><p>{schedules.length} envíos configurados</p></div></div>
         {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : schedules.length === 0 ? <div className="panel__body empty-state"><span className="empty-state__icon">@</span><strong>No hay programaciones</strong><p>Añade una para comenzar a enviar informes.</p></div> : (
-          <div className="table-scroll"><table className="data-table email-table"><thead><tr><th>Destinatario</th><th>Periodo del informe</th><th>Día</th><th>Hora</th><th>Estado</th><th className="actions-column">Acciones</th></tr></thead><tbody>{schedules.map((schedule) => (
-            <tr key={schedule._id}><td><strong>{schedule.email}</strong></td><td>{schedule.frequency === 'weekly' ? 'Semanal' : 'Mensual'}</td><td>{dayLabel(schedule)}</td><td>{schedule.hour}</td><td><span className={`schedule-status ${schedule.active ? 'schedule-status--active' : ''}`}>{schedule.active ? 'Activo' : 'Inactivo'}</span></td><td className="actions-column"><div className="table-actions">
+          <div className="table-scroll"><table className="data-table email-table"><thead><tr><th>Destinatario</th><th>Periodo del informe</th><th>Día</th><th>Hora</th><th>Estado</th><th>Próxima ejecución</th><th>Último envío</th><th className="actions-column">Acciones</th></tr></thead><tbody>{schedules.map((schedule) => (
+            <tr key={schedule._id}><td><strong>{schedule.email}</strong></td><td>{schedule.frequency === 'weekly' ? 'Semanal' : 'Mensual'}</td><td>{dayLabel(schedule)}</td><td>{schedule.hour}</td><td><span className={`schedule-status schedule-status--${schedule.operationalStatus}`}>{scheduleStatus(schedule).icon} {scheduleStatus(schedule).label}</span></td><td>{formatScheduleDate(schedule.nextExecution)}</td><td>{formatScheduleDate(schedule.lastSentAt, 'Nunca')}</td><td className="actions-column"><div className="table-actions">
               <button className="icon-button" type="button" disabled={busyId === schedule._id} onClick={() => handleSend(schedule)} aria-label={`Enviar ahora a ${schedule.email}`} title="Enviar ahora">✉</button>
               <button className="icon-button icon-button--edit" type="button" disabled={busyId === schedule._id} onClick={() => openEdit(schedule)} aria-label={`Editar programación de ${schedule.email}`} title="Editar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.3-1 10.9-10.9a2.1 2.1 0 0 0-3-3L5.3 16 4 20Zm10.8-13.5 2.7 2.7" /></svg></button>
               <button className="icon-button icon-button--delete" type="button" disabled={busyId === schedule._id} onClick={() => setDeleteTarget(schedule)} aria-label={`Eliminar programación de ${schedule.email}`} title="Eliminar">🗑</button>
