@@ -101,7 +101,31 @@ const markMaterialOrderReceived = async (req, res, next) => {
   }
 };
 
+const deleteMaterialOrder = async (req, res, next) => {
+  try {
+    const order = await MaterialOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Pedido de material no encontrado.' });
+
+    const deletedOrder = {
+      id: String(order._id), numeroPedido: order.numeroPedido,
+      producto: order.material, modelo: order.modelo, cantidadRestante: order.cantidadDisponible,
+    };
+    await order.deleteOne();
+    await auditLogger({
+      action: 'MATERIAL_ORDER_DELETED',
+      entity: 'MaterialOrder',
+      user: req.user,
+      details: { pedidoEliminado: deletedOrder },
+      req,
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   listMaterialOrders, listDepletedMaterialOrders, listStockCatalog,
-  createMaterialOrder, markMaterialOrderReceived,
+  createMaterialOrder, markMaterialOrderReceived, deleteMaterialOrder,
 };
