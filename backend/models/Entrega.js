@@ -20,6 +20,31 @@ const entregaSchema = new mongoose.Schema(
       required: [true, 'La cantidad es obligatoria'],
       min: [1, 'La cantidad debe ser mayor que cero'],
     },
+    stockAllocations: {
+      type: [{
+        materialOrderId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'MaterialOrder',
+          required: true,
+        },
+        numeroPedido: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 100,
+        },
+        cantidadConsumida: {
+          type: Number,
+          required: true,
+          min: 1,
+          validate: {
+            validator: Number.isInteger,
+            message: 'La cantidad consumida debe ser un número entero.',
+          },
+        },
+      }],
+      default: undefined,
+    },
     receptor: {
       type: String,
       required: [true, 'El receptor es obligatorio'],

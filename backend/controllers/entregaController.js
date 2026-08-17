@@ -65,7 +65,12 @@ const crearEntrega = async (req, res, next) => {
         cantidad: datosLimpiados.cantidad,
         session,
       });
-      [entregaGuardada] = await Entrega.create([datosLimpiados], { session });
+      const stockAllocations = stockMovements.map((movement) => ({
+        materialOrderId: movement.materialOrderId,
+        numeroPedido: movement.numeroPedido,
+        cantidadConsumida: movement.consumed,
+      }));
+      [entregaGuardada] = await Entrega.create([{ ...datosLimpiados, stockAllocations }], { session });
     });
 
     await auditLogger({
