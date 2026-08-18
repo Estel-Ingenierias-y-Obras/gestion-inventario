@@ -11,4 +11,10 @@ const materialOrderIdValidator = [
   param('id').isMongoId().withMessage('Identificador de pedido no válido.'),
 ];
 
-module.exports = { createMaterialOrderValidator, materialOrderIdValidator };
+const updateMaterialOrderValidator = [
+  ...materialOrderIdValidator,
+  ...createMaterialOrderValidator,
+  body('recibido').isBoolean().withMessage('El estado de recepción debe ser verdadero o falso.').toBoolean(),
+];
+
+module.exports = { createMaterialOrderValidator, materialOrderIdValidator, updateMaterialOrderValidator };

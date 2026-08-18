@@ -48,6 +48,7 @@ export const getMaterialOrders = () => api.get('/api/material-orders');
 export const getStockCatalog = () => api.get('/api/material-orders/catalog');
 export const getMaterialOrderHistory = () => api.get('/api/material-orders/history');
 export const createMaterialOrder = (payload) => api.post('/api/material-orders', payload);
+export const updateMaterialOrder = (id, payload) => api.put(`/api/material-orders/${id}`, payload);
 export const markMaterialOrderReceived = (id) => api.patch(`/api/material-orders/${id}/received`);
 export const deleteMaterialOrder = (id) => api.delete(`/api/material-orders/${id}`);
 

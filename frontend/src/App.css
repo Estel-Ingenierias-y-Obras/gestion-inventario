@@ -189,6 +189,11 @@
 .page-action-group .button { text-decoration: none; }
 .warehouse-table { min-width: 1050px; }.warehouse-history-table { min-width: 760px; }
 .warehouse-table .actions-column { width: 190px; }
+.warehouse-page-actions { display: grid; gap: 10px; }
+.warehouse-table__editable-row { cursor: pointer; }
+.warehouse-table__editable-row:focus-visible { outline: 3px solid rgba(196,137,76,.35); outline-offset: -3px; background: var(--color-secondary-light); }
+.warehouse-edit-dialog { max-height: min(760px, calc(100vh - 48px)); overflow-y: auto; }
+.confirm-modal__icon--neutral { color: var(--color-primary); background: var(--color-primary-light); border-color: var(--color-border-strong); }
 .warehouse-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .warehouse-status--pending { color: #8a5b00; background: #fff4cc; }.warehouse-status--received { color: var(--color-success); background: var(--color-success-light); }
 .button--compact { min-height: 34px; padding: 7px 10px; font-size: 12px; white-space: nowrap; }

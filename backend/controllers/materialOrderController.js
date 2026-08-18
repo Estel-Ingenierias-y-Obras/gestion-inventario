@@ -101,6 +101,73 @@ const markMaterialOrderReceived = async (req, res, next) => {
   }
 };
 
+const updateMaterialOrder = async (req, res, next) => {
+  try {
+    const previousOrder = await MaterialOrder.findOne({ _id: req.params.id, activo: true }).lean();
+    if (!previousOrder) return res.status(404).json({ success: false, message: 'Pedido de material no encontrado.' });
+
+    const cantidadInicial = Number(req.body.cantidadInicial);
+    const consumedQuantity = previousOrder.cantidadInicial - previousOrder.cantidadDisponible;
+    if (cantidadInicial < consumedQuantity) {
+      return res.status(409).json({
+        success: false,
+        message: `La cantidad no puede ser inferior a las ${consumedQuantity} unidades ya consumidas.`,
+      });
+    }
+
+    const previousValues = {
+      material: previousOrder.material,
+      modelo: previousOrder.modelo,
+      cantidadInicial: previousOrder.cantidadInicial,
+      cantidadDisponible: previousOrder.cantidadDisponible,
+      numeroPedido: previousOrder.numeroPedido,
+      recibido: previousOrder.recibido,
+    };
+    const newValues = {
+      material: req.body.material,
+      modelo: req.body.modelo,
+      cantidadInicial,
+      cantidadDisponible: cantidadInicial - consumedQuantity,
+      numeroPedido: req.body.numeroPedido,
+      recibido: req.body.recibido,
+    };
+
+    const order = await MaterialOrder.findOneAndUpdate(
+      {
+        _id: previousOrder._id,
+        activo: true,
+        updatedAt: previousOrder.updatedAt,
+        cantidadInicial: previousOrder.cantidadInicial,
+        cantidadDisponible: previousOrder.cantidadDisponible,
+      },
+      { $set: newValues },
+      { new: true, runValidators: true }
+    );
+    if (!order) {
+      return res.status(409).json({
+        success: false,
+        message: 'El pedido ha cambiado mientras se editaba. Recarga la página e inténtalo de nuevo.',
+      });
+    }
+
+    await auditLogger({
+      action: 'MATERIAL_ORDER_UPDATED',
+      entity: 'MaterialOrder',
+      user: req.user,
+      details: {
+        materialOrderId: String(order._id),
+        valoresAnteriores: previousValues,
+        valoresNuevos: newValues,
+      },
+      req,
+    });
+
+    return res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const deleteMaterialOrder = async (req, res, next) => {
   try {
     const order = await MaterialOrder.findById(req.params.id);
@@ -127,5 +194,5 @@ const deleteMaterialOrder = async (req, res, next) => {
 
 module.exports = {
   listMaterialOrders, listDepletedMaterialOrders, listStockCatalog,
-  createMaterialOrder, markMaterialOrderReceived, deleteMaterialOrder,
+  createMaterialOrder, updateMaterialOrder, markMaterialOrderReceived, deleteMaterialOrder,
 };
