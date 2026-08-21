@@ -53,7 +53,7 @@ const createMaterialOrder = async (req, res, next) => {
       numeroPedido: req.body.numeroPedido,
       cantidadInicial,
       cantidadDisponible: cantidadInicial,
-      recibido: true,
+      recibido: req.body.recibido,
       activo: true,
       createdBy: req.user.email,
     });
@@ -161,6 +161,21 @@ const updateMaterialOrder = async (req, res, next) => {
       },
       req,
     });
+
+    if (previousOrder.recibido !== order.recibido) {
+      await auditLogger({
+        action: 'MATERIAL_RECEIVED_UPDATED',
+        entity: 'MaterialOrder',
+        user: req.user,
+        details: {
+          materialOrderId: String(order._id),
+          numeroPedido: order.numeroPedido,
+          estadoAnterior: previousOrder.recibido,
+          estadoNuevo: order.recibido,
+        },
+        req,
+      });
+    }
 
     return res.status(200).json({ success: true, data: order });
   } catch (error) {

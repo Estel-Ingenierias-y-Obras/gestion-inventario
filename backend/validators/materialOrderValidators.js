@@ -5,6 +5,7 @@ const createMaterialOrderValidator = [
   body('modelo').trim().isLength({ min: 1, max: 100 }).withMessage('El modelo es obligatorio y debe tener máximo 100 caracteres.'),
   body('cantidadInicial').isInt({ min: 1, max: 1000000 }).withMessage('Las unidades deben ser un número entero mayor que cero.'),
   body('numeroPedido').trim().isLength({ min: 1, max: 100 }).withMessage('El número de pedido es obligatorio.'),
+  body('recibido').isBoolean().withMessage('El estado de recepción debe ser verdadero o falso.').toBoolean(),
 ];
 
 const materialOrderIdValidator = [
@@ -14,7 +15,6 @@ const materialOrderIdValidator = [
 const updateMaterialOrderValidator = [
   ...materialOrderIdValidator,
   ...createMaterialOrderValidator,
-  body('recibido').isBoolean().withMessage('El estado de recepción debe ser verdadero o falso.').toBoolean(),
 ];
 
 module.exports = { createMaterialOrderValidator, materialOrderIdValidator, updateMaterialOrderValidator };

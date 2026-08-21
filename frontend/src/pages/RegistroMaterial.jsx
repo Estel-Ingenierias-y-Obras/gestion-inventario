@@ -4,7 +4,7 @@ import PageShell from '../components/PageShell';
 import Toast from '../components/Toast';
 import { createMaterialOrder } from '../services/api';
 
-const initialForm = { material: '', modelo: '', cantidad: '', numeroPedido: '' };
+const initialForm = { material: '', modelo: '', cantidad: '', numeroPedido: '', recibido: false };
 
 function RegistroMaterial() {
   const navigate = useNavigate();
@@ -38,6 +38,7 @@ function RegistroMaterial() {
       await createMaterialOrder({
         material: form.material.trim(), modelo: form.modelo.trim(),
         cantidadInicial: Number(form.cantidad), numeroPedido: form.numeroPedido.trim(),
+        recibido: form.recibido,
       });
       setForm(initialForm);
       setToast({ type: 'success', message: 'Material registrado correctamente.' });
@@ -57,6 +58,21 @@ function RegistroMaterial() {
           <label className="field"><span>Modelo *</span><input value={form.modelo} onChange={(event) => updateField('modelo', event.target.value)} className={errors.modelo ? 'field__input--error' : ''} maxLength={100} />{errors.modelo ? <small>{errors.modelo}</small> : null}</label>
           <label className="field"><span>Cantidad *</span><input type="number" min="1" step="1" value={form.cantidad} onChange={(event) => updateQuantity(event.target.value)} className={errors.cantidad ? 'field__input--error' : ''} />{errors.cantidad ? <small>{errors.cantidad}</small> : null}</label>
           <label className="field"><span>Número de pedido *</span><input value={form.numeroPedido} onChange={(event) => updateField('numeroPedido', event.target.value)} className={errors.numeroPedido ? 'field__input--error' : ''} maxLength={100} />{errors.numeroPedido ? <small>{errors.numeroPedido}</small> : null}</label>
+          <fieldset className="field order-status-field">
+            <legend>Estado del pedido *</legend>
+            <div className="order-status-options">
+              <label className={`order-status-option order-status-option--received${form.recibido ? ' order-status-option--selected' : ''}`}>
+                <input type="radio" name="recibido" value="received" checked={form.recibido} onChange={() => updateField('recibido', true)} />
+                <span className="order-status-option__dot" aria-hidden="true" />
+                <span><strong>Recibido</strong><small>Material disponible en almacén</small></span>
+              </label>
+              <label className={`order-status-option order-status-option--pending${!form.recibido ? ' order-status-option--selected' : ''}`}>
+                <input type="radio" name="recibido" value="pending" checked={!form.recibido} onChange={() => updateField('recibido', false)} />
+                <span className="order-status-option__dot" aria-hidden="true" />
+                <span><strong>Pendiente de recepción</strong><small>Material todavía no recibido</small></span>
+              </label>
+            </div>
+          </fieldset>
         </div>
         <div className="form-actions"><button className="button button--secondary" type="button" onClick={() => navigate('/almacen')} disabled={saving}>Cancelar</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></div>
       </form>
