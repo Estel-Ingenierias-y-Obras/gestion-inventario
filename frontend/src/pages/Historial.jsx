@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
+import SortableHeader from '../components/SortableHeader';
 import Toast from '../components/Toast';
 import { deleteEntrega, getEntregas } from '../services/api';
+import { nextSortConfig } from '../utils/tableSort';
 
 const periods = [
   { value: 'week', label: 'Esta semana' },
@@ -11,6 +13,7 @@ const periods = [
 ];
 
 const emptyPagination = { page: 1, totalPages: 0, total: 0 };
+const descendingByDefault = new Set(['fechaEntrega', 'cantidad']);
 
 function Historial() {
   const [entregas, setEntregas] = useState([]);
@@ -19,6 +22,7 @@ function Historial() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [period, setPeriod] = useState('all');
   const [page, setPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState({ key: 'material', direction: 'asc' });
   const [pagination, setPagination] = useState(emptyPagination);
   const [selectedEntrega, setSelectedEntrega] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -37,7 +41,10 @@ function Historial() {
     const cargar = async () => {
       setLoading(true);
       try {
-        const response = await getEntregas({ page, limit: pageLimit, period, search: debouncedSearch });
+        const response = await getEntregas({
+          page, limit: pageLimit, period, search: debouncedSearch,
+          sortBy: sortConfig.key, sortDirection: sortConfig.direction,
+        });
         if (isActive) {
           setEntregas(response.data?.data || []);
           setPagination(response.data?.pagination || emptyPagination);
@@ -51,7 +58,7 @@ function Historial() {
 
     cargar();
     return () => { isActive = false; };
-  }, [page, period, debouncedSearch, refreshKey]);
+  }, [page, period, debouncedSearch, refreshKey, sortConfig]);
 
   useEffect(() => {
     if (!selectedEntrega) return undefined;
@@ -69,6 +76,11 @@ function Historial() {
 
   const updatePeriod = (value) => {
     setPeriod(value);
+    setPage(1);
+  };
+
+  const handleSort = (key) => {
+    setSortConfig((current) => nextSortConfig(current, key, descendingByDefault.has(key) ? 'desc' : 'asc'));
     setPage(1);
   };
 
@@ -143,12 +155,13 @@ function Historial() {
         ) : (
           <div className="table-scroll">
             <table className="data-table history-table">
-              <thead><tr><th>Fecha</th><th>Material</th><th>Cantidad</th><th>Receptor</th><th>Departamento</th><th>Entregado por</th><th className="actions-column">Acciones</th></tr></thead>
+              <thead><tr><SortableHeader label="Fecha entrega" sortKey="fechaEntrega" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Material" sortKey="material" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Modelo" sortKey="modelo" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Cantidad entregada" sortKey="cantidad" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Receptor" sortKey="receptor" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Departamento" sortKey="departamento" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Entregado por" sortKey="entregadoPor" sortConfig={sortConfig} onSort={handleSort} /><th className="actions-column">Acciones</th></tr></thead>
               <tbody>
                 {entregas.map((item) => (
                   <tr key={item._id}>
                     <td>{new Date(item.fechaEntrega).toLocaleDateString()}</td>
-                    <td><strong>{item.material}</strong><span className="table-secondary">{item.modelo}</span></td>
+                    <td><strong>{item.material}</strong></td>
+                    <td>{item.modelo}</td>
                     <td>{item.cantidad}</td>
                     <td>{item.receptor}</td>
                     <td><span className="tag">{item.departamento}</span></td>

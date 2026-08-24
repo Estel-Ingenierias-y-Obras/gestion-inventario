@@ -11,6 +11,7 @@ import Perfil from './pages/Perfil';
 import Configuracion from './pages/Configuracion';
 import UsuariosConfiguracion from './pages/UsuariosConfiguracion';
 import CorreosConfiguracion from './pages/CorreosConfiguracion';
+import DepartamentosConfiguracion from './pages/DepartamentosConfiguracion';
 import NoAutorizado from './pages/NoAutorizado';
 import RegistroMaterial from './pages/RegistroMaterial';
 import Almacen from './pages/Almacen';
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/configuracion" element={<Configuracion />} />
                 <Route path="/configuracion/usuarios" element={<UsuariosConfiguracion />} />
                 <Route path="/configuracion/correos" element={<CorreosConfiguracion />} />
+                <Route path="/configuracion/departamentos" element={<DepartamentosConfiguracion />} />
               </Route>
             </Route>
           </Route>

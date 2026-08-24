@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
+import SortableHeader from '../components/SortableHeader';
 import Toast from '../components/Toast';
 import { useAccess } from '../context/AccessContext';
 import {
-  deleteMaterialOrder, getMaterialOrders, markMaterialOrderReceived, updateMaterialOrder,
+  deleteMaterialOrder, getMaterialOrders, updateMaterialOrder,
 } from '../services/api';
+import { nextSortConfig, sortRows } from '../utils/tableSort';
 
 const emptyForm = { material: '', modelo: '', cantidad: '', numeroPedido: '', recibido: false };
 const normalizeSearch = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
+const columnTypes = { cantidadInicial: 'number', cantidadDisponible: 'number', createdAt: 'date' };
+const descendingByDefault = new Set(['cantidadInicial', 'cantidadDisponible', 'createdAt']);
 
 function Almacen() {
   const { isAdmin } = useAccess();
@@ -17,6 +21,7 @@ function Almacen() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [search, setSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'material', direction: 'asc' });
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState(emptyForm);
   const [editErrors, setEditErrors] = useState({});
@@ -53,11 +58,15 @@ function Almacen() {
 
   const filteredOrders = useMemo(() => {
     const query = normalizeSearch(search.trim());
-    if (!query) return orders;
-    return orders.filter((order) => [
+    const filtered = query ? orders.filter((order) => [
       order.numeroPedido, order.material, order.modelo, order.proveedor,
-    ].some((value) => normalizeSearch(value).includes(query)));
-  }, [orders, search]);
+    ].some((value) => normalizeSearch(value).includes(query))) : orders;
+    return sortRows(filtered, sortConfig, columnTypes);
+  }, [orders, search, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => nextSortConfig(current, key, descendingByDefault.has(key) ? 'desc' : 'asc'));
+  };
 
   const openEdit = (order) => {
     if (busyId) return;
@@ -122,19 +131,6 @@ function Almacen() {
     }
   };
 
-  const markReceived = async (order) => {
-    setBusyId(order._id);
-    try {
-      await markMaterialOrderReceived(order._id);
-      await loadOrders();
-      setToast({ type: 'success', message: 'Material marcado como recibido.' });
-    } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo actualizar la recepción.' });
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setBusyId(deleteTarget._id);
@@ -173,10 +169,10 @@ function Almacen() {
       <section className="panel">
         <div className="panel__header panel__header--compact"><div><h2>Pedidos activos</h2><p>{filteredOrders.length} {filteredOrders.length === 1 ? 'pedido encontrado' : 'pedidos encontrados'}</p></div></div>
         {loading ? <div className="panel__body"><LoadingState rows={6} /></div> : filteredOrders.length === 0 ? <div className="empty-state"><span className="empty-state__icon" aria-hidden="true">⌕</span><strong>Sin resultados</strong><p>{search ? 'No hay pedidos que coincidan con la búsqueda.' : 'Registra una compra para comenzar.'}</p></div> : (
-          <div className="table-scroll"><table className="data-table warehouse-table"><thead><tr><th>N.º pedido</th><th>Material</th><th>Modelo</th><th>Inicial</th><th>Disponible</th><th>Fecha creación</th><th>Recepción</th><th className="actions-column">Acciones</th></tr></thead><tbody>{filteredOrders.map((order) => (
+          <div className="table-scroll"><table className="data-table warehouse-table"><thead><tr><SortableHeader label="N.º pedido" sortKey="numeroPedido" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Material" sortKey="material" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Modelo" sortKey="modelo" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Inicial" sortKey="cantidadInicial" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Disponible" sortKey="cantidadDisponible" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Fecha creación" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} /><th>Recepción</th>{isAdmin ? <th className="actions-column">Acciones</th> : null}</tr></thead><tbody>{filteredOrders.map((order) => (
             <tr key={order._id} className="warehouse-table__editable-row" role="button" tabIndex="0" aria-label={`Editar pedido ${order.numeroPedido}`} onClick={() => openEdit(order)} onKeyDown={(event) => {
               if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEdit(order); }
-            }}><td><strong>{order.numeroPedido}</strong></td><td>{order.material}</td><td>{order.modelo}</td><td>{order.cantidadInicial}</td><td><strong>{order.cantidadDisponible}</strong></td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td><td><span className={`warehouse-status warehouse-status--${order.recibido ? 'received' : 'pending'}`}>{order.recibido ? '● Recibido' : '● Pendiente recepción'}</span></td><td className="actions-column"><div className="table-actions">{!order.recibido ? <button className="button button--secondary button--compact" type="button" onClick={(event) => actionClick(event, () => markReceived(order))} disabled={busyId === order._id}>{busyId === order._id ? 'Actualizando…' : 'Marcar recibido'}</button> : null}{isAdmin ? <button className="icon-button icon-button--delete" type="button" onClick={(event) => actionClick(event, () => setDeleteTarget(order))} disabled={busyId === order._id} aria-label={`Eliminar pedido ${order.numeroPedido}`} title="Eliminar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg></button> : null}</div></td></tr>
+            }}><td><strong>{order.numeroPedido}</strong></td><td>{order.material}</td><td>{order.modelo}</td><td>{order.cantidadInicial}</td><td><strong>{order.cantidadDisponible}</strong></td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td><td><span className={`warehouse-status warehouse-status--${order.recibido ? 'received' : 'pending'}`}>{order.recibido ? '● Recibido' : '● Pendiente recepción'}</span></td>{isAdmin ? <td className="actions-column"><div className="table-actions"><button className="icon-button icon-button--delete" type="button" onClick={(event) => actionClick(event, () => setDeleteTarget(order))} disabled={busyId === order._id} aria-label={`Eliminar pedido ${order.numeroPedido}`} title="Eliminar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg></button></div></td> : null}</tr>
           ))}</tbody></table></div>
         )}
       </section>

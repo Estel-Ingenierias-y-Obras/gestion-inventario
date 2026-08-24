@@ -3,7 +3,7 @@ import PageShell from '../components/PageShell';
 
 function Configuracion() {
   return (
-    <PageShell title="Configuración" subtitle="Administración de accesos y comunicaciones automáticas">
+    <PageShell title="Configuración" subtitle="Administración de accesos, departamentos y comunicaciones automáticas">
       <div className="admin-menu">
         <Link className="admin-option" to="/configuracion/usuarios">
           <span className="admin-option__icon" aria-hidden="true">U</span>
@@ -13,6 +13,11 @@ function Configuracion() {
         <Link className="admin-option" to="/configuracion/correos">
           <span className="admin-option__icon" aria-hidden="true">@</span>
           <div><h2>Correos</h2><p>Programa el envío automático de registros de entregas.</p></div>
+          <span className="admin-option__arrow" aria-hidden="true">→</span>
+        </Link>
+        <Link className="admin-option" to="/configuracion/departamentos">
+          <span className="admin-option__icon" aria-hidden="true">D</span>
+          <div><h2>Departamentos</h2><p>Gestiona las opciones disponibles al registrar nuevas entregas.</p></div>
           <span className="admin-option__arrow" aria-hidden="true">→</span>
         </Link>
       </div>

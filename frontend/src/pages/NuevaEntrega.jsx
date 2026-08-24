@@ -1,22 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import Toast from '../components/Toast';
-import { createEntrega, getStockCatalog } from '../services/api';
+import { createEntrega, getDepartments, getStockCatalog } from '../services/api';
 
 const initialState = { material: '', modelo: '', cantidad: '', receptor: '', departamento: '' };
-
-const departamentos = [
-  'IT',
-  'RRHH',
-  'Producción',
-  'Administración',
-  'Energía',
-  'Marketing',
-  'SAT',
-  'Almacén',
-  'Proyectos',
-  'Presupuestos',
-];
 
 function NuevaEntrega() {
   const [form, setForm] = useState(initialState);
@@ -24,6 +11,8 @@ function NuevaEntrega() {
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalog, setCatalog] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const closeToast = useCallback(() => setToast(null), []);
 
@@ -40,6 +29,15 @@ function NuevaEntrega() {
   }, []);
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
+
+  useEffect(() => {
+    let active = true;
+    getDepartments()
+      .then((response) => { if (active) setDepartments(response.data?.data || []); })
+      .catch((error) => { if (active) setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudieron cargar los departamentos.' }); })
+      .finally(() => { if (active) setDepartmentsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const materials = useMemo(() => [...new Set(catalog.map((item) => item.material))], [catalog]);
   const models = useMemo(() => catalog.filter((item) => item.material === form.material), [catalog, form.material]);
@@ -112,7 +110,7 @@ function NuevaEntrega() {
           <div className={`stock-availability${form.modelo ? ' stock-availability--available' : ''}`}><span>Stock disponible</span><strong>{form.modelo ? `${selectedStock} unidades` : 'Selecciona un modelo'}</strong></div>
           <label className="field"><span>Cantidad</span><input type="number" min="1" max={selectedStock || undefined} step="1" value={form.cantidad} onChange={(event) => updateQuantity(event.target.value)} className={errors.cantidad ? 'field__input--error' : ''} disabled={!form.modelo || selectedStock < 1} />{errors.cantidad ? <small>{errors.cantidad}</small> : null}</label>
           <label className="field"><span>Receptor</span><input value={form.receptor} placeholder="Nombre y apellidos" onChange={(event) => updateField('receptor', event.target.value)} className={errors.receptor ? 'field__input--error' : ''} />{errors.receptor ? <small>{errors.receptor}</small> : null}</label>
-          <label className="field"><span>Departamento</span><select value={form.departamento} onChange={(event) => updateField('departamento', event.target.value)} className={errors.departamento ? 'field__input--error' : ''}><option value="" disabled>Selecciona un departamento</option>{departamentos.map((departamento) => <option key={departamento} value={departamento}>{departamento}</option>)}</select>{errors.departamento ? <small>{errors.departamento}</small> : null}</label>
+          <label className="field"><span>Departamento</span><select value={form.departamento} onChange={(event) => updateField('departamento', event.target.value)} className={errors.departamento ? 'field__input--error' : ''} disabled={departmentsLoading || departments.length === 0}><option value="" disabled>{departmentsLoading ? 'Cargando departamentos…' : departments.length === 0 ? 'No hay departamentos registrados.' : 'Selecciona un departamento'}</option>{departments.map((department) => <option key={department._id} value={department.name}>{department.name}</option>)}</select>{errors.departamento ? <small>{errors.departamento}</small> : null}</label>
           <div className="authenticated-user"><span className="authenticated-user__icon">✓</span><div><small>Entregado por</small><strong>Usuario autenticado</strong></div></div>
         </div>
         <div className="form-actions"><span>La fecha y el usuario se registrarán automáticamente.</span><button type="submit" disabled={loading} className="button button--primary">{loading ? 'Guardando…' : 'Guardar entrega'}</button></div>

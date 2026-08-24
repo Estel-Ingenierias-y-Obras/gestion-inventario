@@ -75,32 +75,6 @@ const createMaterialOrder = async (req, res, next) => {
   }
 };
 
-const markMaterialOrderReceived = async (req, res, next) => {
-  try {
-    const order = await MaterialOrder.findOneAndUpdate(
-      { _id: req.params.id, activo: true },
-      { $set: { recibido: true } },
-      { new: true, runValidators: true }
-    );
-    if (!order) return res.status(404).json({ success: false, message: 'Pedido de material no encontrado.' });
-
-    await auditLogger({
-      action: 'MATERIAL_RECEIVED_UPDATED',
-      entity: 'MaterialOrder',
-      user: req.user,
-      details: {
-        materialOrderId: String(order._id), numeroPedido: order.numeroPedido,
-        material: order.material, modelo: order.modelo, recibido: order.recibido,
-      },
-      req,
-    });
-
-    return res.status(200).json({ success: true, data: order });
-  } catch (error) {
-    return next(error);
-  }
-};
-
 const updateMaterialOrder = async (req, res, next) => {
   try {
     const previousOrder = await MaterialOrder.findOne({ _id: req.params.id, activo: true }).lean();
@@ -183,6 +157,70 @@ const updateMaterialOrder = async (req, res, next) => {
   }
 };
 
+const restoreMaterialOrder = async (req, res, next) => {
+  try {
+    const cantidadRestaurada = Number(req.body.cantidad);
+    const depletedOrder = await MaterialOrder.findOne({
+      _id: req.params.id,
+      activo: false,
+      cantidadDisponible: 0,
+    }).lean();
+
+    if (!depletedOrder) {
+      return res.status(404).json({ success: false, message: 'Pedido agotado no encontrado.' });
+    }
+    if (cantidadRestaurada > depletedOrder.cantidadInicial) {
+      return res.status(409).json({
+        success: false,
+        message: `La cantidad no puede superar las ${depletedOrder.cantidadInicial} unidades iniciales.`,
+      });
+    }
+
+    const stockAnterior = depletedOrder.cantidadDisponible;
+    const order = await MaterialOrder.findOneAndUpdate(
+      {
+        _id: depletedOrder._id,
+        activo: false,
+        cantidadDisponible: stockAnterior,
+        updatedAt: depletedOrder.updatedAt,
+      },
+      {
+        $set: {
+          cantidadDisponible: cantidadRestaurada,
+          activo: true,
+          agotadoAt: null,
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!order) {
+      return res.status(409).json({
+        success: false,
+        message: 'El pedido ya ha sido restaurado o ha cambiado. Recarga la página e inténtalo de nuevo.',
+      });
+    }
+
+    await auditLogger({
+      action: 'MATERIAL_ORDER_RESTORED',
+      entity: 'MaterialOrder',
+      user: req.user,
+      details: {
+        materialOrderId: String(order._id),
+        numeroPedido: order.numeroPedido,
+        cantidadRestaurada,
+        stockAnterior,
+        stockNuevo: order.cantidadDisponible,
+      },
+      req,
+    });
+
+    return res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const deleteMaterialOrder = async (req, res, next) => {
   try {
     const order = await MaterialOrder.findById(req.params.id);
@@ -209,5 +247,5 @@ const deleteMaterialOrder = async (req, res, next) => {
 
 module.exports = {
   listMaterialOrders, listDepletedMaterialOrders, listStockCatalog,
-  createMaterialOrder, updateMaterialOrder, markMaterialOrderReceived, deleteMaterialOrder,
+  createMaterialOrder, updateMaterialOrder, restoreMaterialOrder, deleteMaterialOrder,
 };

@@ -17,4 +17,12 @@ const updateMaterialOrderValidator = [
   ...createMaterialOrderValidator,
 ];
 
-module.exports = { createMaterialOrderValidator, materialOrderIdValidator, updateMaterialOrderValidator };
+const restoreMaterialOrderValidator = [
+  ...materialOrderIdValidator,
+  body('cantidad').isInt({ min: 1, max: 1000000 }).withMessage('La cantidad debe ser un número entero mayor que cero.').toInt(),
+];
+
+module.exports = {
+  createMaterialOrderValidator, materialOrderIdValidator, updateMaterialOrderValidator,
+  restoreMaterialOrderValidator,
+};

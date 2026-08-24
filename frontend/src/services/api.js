@@ -29,8 +29,8 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-export const getEntregas = ({ page = 1, limit = 20, period = 'all', search = '' } = {}) => (
-  api.get('/api/entregas', { params: { page, limit, period, search } })
+export const getEntregas = ({ page = 1, limit = 20, period = 'all', search = '', sortBy, sortDirection } = {}) => (
+  api.get('/api/entregas', { params: { page, limit, period, search, sortBy, sortDirection } })
 );
 export const getEntregaStats = () => api.get('/api/entregas/stats');
 export const createEntrega = (payload) => api.post('/api/entregas', payload);
@@ -49,7 +49,10 @@ export const getStockCatalog = () => api.get('/api/material-orders/catalog');
 export const getMaterialOrderHistory = () => api.get('/api/material-orders/history');
 export const createMaterialOrder = (payload) => api.post('/api/material-orders', payload);
 export const updateMaterialOrder = (id, payload) => api.put(`/api/material-orders/${id}`, payload);
-export const markMaterialOrderReceived = (id) => api.patch(`/api/material-orders/${id}/received`);
+export const restoreMaterialOrder = (id, cantidad) => api.patch(`/api/material-orders/${id}/restore`, { cantidad });
 export const deleteMaterialOrder = (id) => api.delete(`/api/material-orders/${id}`);
+export const getDepartments = () => api.get('/api/departments');
+export const createDepartment = (payload) => api.post('/api/departments', payload);
+export const deleteDepartment = (id) => api.delete(`/api/departments/${id}`);
 
 export default api;

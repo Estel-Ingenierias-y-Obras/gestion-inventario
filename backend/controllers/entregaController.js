@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Entrega = require('../models/Entrega');
+const Department = require('../models/Department');
 const auditLogger = require('../utils/auditLogger');
 const { consumeStockFIFO } = require('../services/stockService');
 const { sendDeliveryNotification } = require('../services/deliveryNotificationService');
@@ -10,6 +11,10 @@ const normalizeString = (value) => {
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const entregaSortFields = new Set([
+  'fechaEntrega', 'material', 'modelo', 'cantidad', 'receptor', 'departamento', 'entregadoPor',
+]);
 
 const buildEntregaFilter = ({ period, search }) => {
   const filter = { deleted: { $ne: true } };
@@ -55,6 +60,17 @@ const crearEntrega = async (req, res, next) => {
       entregadoPor,
       createdBy: usuario.email || '',
     };
+
+    const departmentExists = await Department.findOne({ name: datosLimpiados.departamento })
+      .collation({ locale: 'es', strength: 2 })
+      .lean();
+    if (!departmentExists) {
+      return res.status(400).json({
+        success: false,
+        code: 'DEPARTMENT_NOT_AVAILABLE',
+        message: 'El departamento seleccionado ya no está disponible.',
+      });
+    }
 
     let entregaGuardada;
     let stockMovements = [];
@@ -143,9 +159,12 @@ const obtenerEntregas = async (req, res, next) => {
     const period = ['week', 'month', 'all'].includes(req.query.period) ? req.query.period : 'all';
     const search = normalizeString(req.query.search).slice(0, 100);
     const filter = buildEntregaFilter({ period, search });
+    const sortBy = entregaSortFields.has(req.query.sortBy) ? req.query.sortBy : 'fechaEntrega';
+    const sortDirection = req.query.sortDirection === 'asc' ? 1 : -1;
+    const sort = { [sortBy]: sortDirection, _id: 1 };
 
     const [entregas, total] = await Promise.all([
-      Entrega.find(filter).sort({ fechaEntrega: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Entrega.find(filter).collation({ locale: 'es', strength: 2 }).sort(sort).skip(skip).limit(limit).lean(),
       Entrega.countDocuments(filter),
     ]);
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);

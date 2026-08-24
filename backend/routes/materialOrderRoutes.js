@@ -4,10 +4,11 @@ const { requireWhitelist, requireAdmin } = require('../middleware/whitelist');
 const validateRequest = require('../middleware/validateRequest');
 const {
   listMaterialOrders, listDepletedMaterialOrders, listStockCatalog,
-  createMaterialOrder, updateMaterialOrder, markMaterialOrderReceived, deleteMaterialOrder,
+  createMaterialOrder, updateMaterialOrder, restoreMaterialOrder, deleteMaterialOrder,
 } = require('../controllers/materialOrderController');
 const {
   createMaterialOrderValidator, materialOrderIdValidator, updateMaterialOrderValidator,
+  restoreMaterialOrderValidator,
 } = require('../validators/materialOrderValidators');
 
 const router = express.Router();
@@ -18,7 +19,7 @@ router.get('/history', listDepletedMaterialOrders);
 router.get('/catalog', listStockCatalog);
 router.post('/', createMaterialOrderValidator, validateRequest, createMaterialOrder);
 router.put('/:id', updateMaterialOrderValidator, validateRequest, updateMaterialOrder);
-router.patch('/:id/received', materialOrderIdValidator, validateRequest, markMaterialOrderReceived);
+router.patch('/:id/restore', requireAdmin, restoreMaterialOrderValidator, validateRequest, restoreMaterialOrder);
 router.delete('/:id', requireAdmin, materialOrderIdValidator, validateRequest, deleteMaterialOrder);
 
 module.exports = router;
