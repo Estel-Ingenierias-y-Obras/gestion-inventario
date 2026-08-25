@@ -12,6 +12,7 @@ import Configuracion from './pages/Configuracion';
 import UsuariosConfiguracion from './pages/UsuariosConfiguracion';
 import CorreosConfiguracion from './pages/CorreosConfiguracion';
 import DepartamentosConfiguracion from './pages/DepartamentosConfiguracion';
+import DepartamentoDetalle from './pages/DepartamentoDetalle';
 import NoAutorizado from './pages/NoAutorizado';
 import RegistroMaterial from './pages/RegistroMaterial';
 import Almacen from './pages/Almacen';
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/configuracion/usuarios" element={<UsuariosConfiguracion />} />
                 <Route path="/configuracion/correos" element={<CorreosConfiguracion />} />
                 <Route path="/configuracion/departamentos" element={<DepartamentosConfiguracion />} />
+                <Route path="/departamentos/:id" element={<DepartamentoDetalle />} />
               </Route>
             </Route>
           </Route>

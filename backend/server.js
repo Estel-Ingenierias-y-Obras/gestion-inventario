@@ -9,6 +9,7 @@ const whitelistRoutes = require('./routes/whitelistRoutes');
 const emailScheduleRoutes = require('./routes/emailScheduleRoutes');
 const materialOrderRoutes = require('./routes/materialOrderRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
+const personRoutes = require('./routes/personRoutes');
 const WhitelistUser = require('./models/WhitelistUser');
 const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
@@ -46,6 +47,7 @@ app.use('/api/whitelist', whitelistRoutes);
 app.use('/api/email-schedules', emailScheduleRoutes);
 app.use('/api/material-orders', materialOrderRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api', personRoutes);
 
 app.get('/', apiLimiter, (req, res) => {
   res.json({

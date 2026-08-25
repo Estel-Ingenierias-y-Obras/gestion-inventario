@@ -249,6 +249,20 @@
 .skeleton-row { height: 56px; border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--color-primary-soft) 25%, var(--color-border) 50%, var(--color-primary-soft) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+.table-link { padding: 0; color: var(--color-primary); background: transparent; border: 0; font: inherit; font-weight: 680; cursor: pointer; text-align: left; }
+.table-link:hover { color: var(--color-secondary-hover); text-decoration: underline; }
+.data-table tbody .clickable-table-row { cursor: pointer; transition: background var(--transition), box-shadow var(--transition), transform var(--transition); }
+.data-table tbody .clickable-table-row:hover { background: color-mix(in srgb, var(--color-secondary-light) 82%, var(--color-border)); box-shadow: inset 3px 0 var(--color-secondary), 0 3px 10px rgba(4,60,75,.08); }
+.data-table tbody .clickable-table-row:focus-visible { position: relative; z-index: 1; outline: 3px solid rgba(196,137,76,.42); outline-offset: -3px; background: var(--color-secondary-light); box-shadow: inset 3px 0 var(--color-secondary), 0 3px 10px rgba(4,60,75,.1); }
+.department-people-toolbar { gap: 24px; }.department-people-toolbar .search-box { width: min(360px, 100%); }
+.row-actions { display: flex; gap: 7px; }
+.person-material-dialog { width: min(1180px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; }
+.material-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.material-dialog-heading p { margin-top: 4px; color: var(--color-text-secondary); }
+.material-history-table { min-width: 1050px; }
+.assignment-removed { opacity: .65; }.assignment-removed td { background: var(--color-primary-light); }
+.modal-backdrop--nested { z-index: 70; background: rgba(2,38,48,.7); }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @media (max-width: 1050px) {
   .topbar { grid-template-columns: 1fr auto; padding: 10px 20px 0; }

@@ -1,4 +1,5 @@
 const Department = require('../models/Department');
+const Person = require('../models/Person');
 const auditLogger = require('../utils/auditLogger');
 
 const listDepartments = async (_req, res, next) => {
@@ -58,6 +59,13 @@ const deleteDepartment = async (req, res, next) => {
     }
 
     const departmentName = department.name;
+    const peopleCount = await Person.countDocuments({ departmentId: department._id, deleted: { $ne: true } });
+    if (peopleCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'No se puede eliminar un departamento que contiene personas.',
+      });
+    }
     await department.deleteOne();
     await auditLogger({
       action: 'DEPARTMENT_DELETED',

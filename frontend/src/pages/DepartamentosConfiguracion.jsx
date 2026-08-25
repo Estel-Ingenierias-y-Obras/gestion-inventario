@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import BackToConfiguration from '../components/BackToConfiguration';
 import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
@@ -6,6 +7,7 @@ import Toast from '../components/Toast';
 import { createDepartment, deleteDepartment, getDepartments } from '../services/api';
 
 function DepartamentosConfiguracion() {
+  const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,6 +31,13 @@ function DepartamentosConfiguracion() {
   }, []);
 
   useEffect(() => { loadDepartments(); }, [loadDepartments]);
+
+  const openDepartment = (department) => navigate(`/departamentos/${department._id}`);
+  const handleRowKeyDown = (event, department) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openDepartment(department);
+  };
 
   const closeAdd = () => {
     if (saving) return;
@@ -86,7 +95,7 @@ function DepartamentosConfiguracion() {
       <BackToConfiguration />
       <section className="panel">
         <div className="panel__header panel__header--compact"><div><h2>Departamentos registrados</h2><p>{departments.length} {departments.length === 1 ? 'departamento' : 'departamentos'}</p></div></div>
-        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : departments.length === 0 ? <div className="empty-state"><strong>No hay departamentos registrados.</strong><p>Añade un departamento para utilizarlo en nuevas entregas.</p></div> : <div className="table-scroll"><table className="data-table department-table"><thead><tr><th>Departamento</th><th>Fecha creación</th><th className="actions-column">Acciones</th></tr></thead><tbody>{departments.map((department) => <tr key={department._id}><td><strong>{department.name}</strong></td><td>{new Date(department.createdAt).toLocaleDateString('es-ES')}</td><td className="actions-column"><button className="icon-button icon-button--delete" type="button" onClick={() => setDeleteTarget(department)} aria-label={`Eliminar departamento ${department.name}`} title="Eliminar">🗑</button></td></tr>)}</tbody></table></div>}
+        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : departments.length === 0 ? <div className="empty-state"><strong>No hay departamentos registrados.</strong><p>Añade un departamento para utilizarlo en nuevas entregas.</p></div> : <div className="table-scroll"><table className="data-table department-table"><thead><tr><th>Departamento</th><th>Fecha creación</th><th className="actions-column">Acciones</th></tr></thead><tbody>{departments.map((department) => <tr className="clickable-table-row" key={department._id} tabIndex={0} role="link" aria-label={`Abrir departamento ${department.name}`} onClick={() => openDepartment(department)} onKeyDown={(event) => handleRowKeyDown(event, department)}><td><strong>{department.name}</strong></td><td>{new Date(department.createdAt).toLocaleDateString('es-ES')}</td><td className="actions-column"><button className="icon-button icon-button--delete" type="button" onKeyDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setDeleteTarget(department); }} aria-label={`Eliminar departamento ${department.name}`} title="Eliminar">🗑</button></td></tr>)}</tbody></table></div>}
       </section>
 
       {addOpen ? <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAdd(); }}><form className="dialog-card" onSubmit={handleAdd} role="dialog" aria-modal="true" aria-labelledby="add-department-title" noValidate><h2 id="add-department-title">Nuevo departamento</h2><p>Añade una opción para las futuras entregas.</p><label className="field"><span>Nombre del departamento</span><input autoFocus value={name} onChange={(event) => { setName(event.target.value); setNameError(''); }} className={nameError ? 'field__input--error' : ''} maxLength={100} />{nameError ? <small>{nameError}</small> : null}</label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={closeAdd} disabled={saving}>Cancelar</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></div></form></div> : null}

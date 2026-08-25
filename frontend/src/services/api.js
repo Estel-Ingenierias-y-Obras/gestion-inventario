@@ -54,5 +54,16 @@ export const deleteMaterialOrder = (id) => api.delete(`/api/material-orders/${id
 export const getDepartments = () => api.get('/api/departments');
 export const createDepartment = (payload) => api.post('/api/departments', payload);
 export const deleteDepartment = (id) => api.delete(`/api/departments/${id}`);
+export const getDepartment = (id) => api.get(`/api/departments/${id}`);
+export const getDepartmentPeople = (departmentId) => api.get(`/api/departments/${departmentId}/people`);
+export const createPerson = (departmentId, payload) => api.post(`/api/departments/${departmentId}/people`, payload);
+export const updatePerson = (personId, payload) => api.put(`/api/people/${personId}`, payload);
+export const deletePerson = (personId) => api.delete(`/api/people/${personId}`);
+export const getPersonMaterials = (personId) => api.get(`/api/people/${personId}/materials`);
+export const assignPersonMaterial = (personId, payload) => api.post(`/api/people/${personId}/materials`, payload);
+export const updatePersonMaterialSerial = (personId, assignmentId, numeroSerie) => (
+  api.patch(`/api/people/${personId}/materials/${assignmentId}/serial`, { numeroSerie })
+);
+export const removePersonMaterial = (personId, assignmentId) => api.delete(`/api/people/${personId}/materials/${assignmentId}`);
 
 export default api;
