@@ -7,10 +7,10 @@ import Toast from '../components/Toast';
 import { nextSortConfig, sortRows } from '../utils/tableSort';
 import {
   assignPersonMaterial, createPerson, deletePerson, getDepartmentPeople, getPersonMaterials,
-  getStockCatalog, removePersonMaterial, updatePerson, updatePersonMaterialSerial,
+  removePersonMaterial, updatePerson, updatePersonMaterialSerial,
 } from '../services/api';
 
-const emptyAssignment = { origen: 'almacen', material: '', modelo: '', cantidad: 1, numeroSerie: '' };
+const emptyAssignment = { origen: 'manual', material: '', modelo: '', cantidad: 1, numeroSerie: '' };
 const date = (value) => new Date(value).toLocaleDateString('es-ES');
 const requiresSerial = (material) => {
   const value = material.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
@@ -32,8 +32,8 @@ function DepartamentoDetalle() {
   const [assignments, setAssignments] = useState([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState(null);
-  const [stock, setStock] = useState([]);
   const [serialEdit, setSerialEdit] = useState(null);
+  const [unassignTarget, setUnassignTarget] = useState(null);
   const [toast, setToast] = useState(null);
 
   const loadPeople = useCallback(async () => {
@@ -89,16 +89,7 @@ function DepartamentoDetalle() {
     await loadPeople();
   };
 
-  const openAssignment = async () => {
-    setSaving(true);
-    try { const response = await getStockCatalog(); setStock(response.data.data || []); setAssignmentForm({ ...emptyAssignment }); }
-    catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo cargar el stock.' }); }
-    finally { setSaving(false); }
-  };
-
-  const materialOptions = useMemo(() => [...new Set(stock.map((item) => item.material))], [stock]);
-  const modelOptions = useMemo(() => stock.filter((item) => item.material === assignmentForm?.material), [stock, assignmentForm]);
-  const selectedStock = modelOptions.find((item) => item.modelo === assignmentForm?.modelo)?.cantidadDisponible || 0;
+  const openAssignment = () => setAssignmentForm({ ...emptyAssignment });
 
   const saveAssignment = async (event) => {
     event.preventDefault(); setSaving(true);
@@ -117,6 +108,19 @@ function DepartamentoDetalle() {
     finally { setSaving(false); }
   };
 
+  const handleUnassign = async () => {
+    if (!unassignTarget) return;
+    setSaving(true);
+    try {
+      await removePersonMaterial(selectedPerson._id, unassignTarget._id);
+      setUnassignTarget(null);
+      await refreshMaterials();
+      setToast({ type: 'success', message: 'Material desasignado correctamente.' });
+    } catch (error) {
+      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo desasignar el material.' });
+    } finally { setSaving(false); }
+  };
+
   return (
     <PageShell title={department?.name || 'Departamento'} subtitle="Personas del departamento" actions={<button className="button button--primary" type="button" onClick={() => setPersonForm({ nombreCompleto: '' })}>+ Nueva persona</button>}>
       <Link className="back-to-configuration" to="/configuracion/departamentos">← <span>Volver a departamentos</span></Link>
@@ -129,11 +133,12 @@ function DepartamentoDetalle() {
 
       {deleteTarget ? <div className="modal-backdrop"><section className="dialog-card"><h2>Eliminar persona</h2><p>La persona dejará de estar activa, pero conservará su historial individual.</p><strong>{deleteTarget.nombreCompleto}</strong><div className="dialog-card__actions"><button className="button button--secondary" onClick={() => setDeleteTarget(null)}>Cancelar</button><button className="button button--danger" disabled={saving} onClick={async () => { setSaving(true); try { await deletePerson(deleteTarget._id); setDeleteTarget(null); await loadPeople(); } catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo eliminar.' }); } finally { setSaving(false); } }}>Eliminar</button></div></section></div> : null}
 
-      {selectedPerson ? <div className="modal-backdrop"><section className="dialog-card person-material-dialog"><div className="material-dialog-heading"><div><h2>Gestión de material asignado</h2><p>{selectedPerson.nombreCompleto}</p></div><button className="button button--primary" type="button" onClick={openAssignment} disabled={saving}>+ Asignar material</button></div>{materialsLoading ? <LoadingState rows={4} /> : <div className="table-scroll"><table className="data-table material-history-table"><thead><tr><th>Material</th><th>Modelo</th><th>Cantidad</th><th>Número serie</th><th>Número pedido</th><th>Fecha asignación</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{assignments.map((item) => <tr key={item._id} className={item.removed ? 'assignment-removed' : ''}><td>{item.material}</td><td>{item.modelo}</td><td>{item.cantidad}</td><td>{item.numeroSerie || '—'}</td><td>{item.numeroPedido || '—'}</td><td>{date(item.assignedAt)}</td><td>{item.removed ? `Retirado ${date(item.removedAt)}` : 'Asignado'}</td><td>{!item.removed ? <div className="row-actions"><button className="icon-button icon-button--edit" type="button" title="Editar serie" onClick={() => setSerialEdit({ ...item, numeroSerie: item.numeroSerie || '' })}>✎</button><button className="icon-button icon-button--delete" type="button" title="Retirar" onClick={async () => { setSaving(true); try { await removePersonMaterial(selectedPerson._id, item._id); await refreshMaterials(); } catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo retirar.' }); } finally { setSaving(false); } }}>🗑</button></div> : '—'}</td></tr>)}</tbody></table>{assignments.length === 0 ? <div className="empty-state"><p>No hay material asignado.</p></div> : null}</div>}<div className="dialog-card__actions"><button className="button button--secondary" onClick={() => setSelectedPerson(null)}>Cerrar</button></div></section></div> : null}
+      {selectedPerson ? <div className="modal-backdrop"><section className="dialog-card person-material-dialog"><div className="material-dialog-heading"><div><h2>Gestión de material asignado</h2><p>{selectedPerson.nombreCompleto}</p></div><button className="button button--primary" type="button" onClick={openAssignment} disabled={saving}>+ Asignar material</button></div>{materialsLoading ? <LoadingState rows={4} /> : <div className="table-scroll"><table className="data-table material-history-table"><thead><tr><th>Material</th><th>Modelo</th><th>Cantidad</th><th>Número serie</th><th>Número pedido</th><th>Fecha asignación</th><th>Acciones</th></tr></thead><tbody>{assignments.map((item) => <tr key={item._id} className={item.removed ? 'assignment-removed' : ''}><td>{item.material}</td><td>{item.modelo}</td><td>{item.cantidad}</td><td>{item.numeroSerie || '-'}</td><td>{item.numeroPedido || '—'}</td><td>{date(item.assignedAt)}</td><td>{!item.removed ? <div className="row-actions"><button className="icon-button icon-button--edit" type="button" title="Editar serie" onClick={() => setSerialEdit({ ...item, numeroSerie: item.numeroSerie || '' })}>✎</button><button className="icon-button icon-button--restore" type="button" title="Desasignar" aria-label={`Desasignar ${item.material} de ${selectedPerson.nombreCompleto}`} onClick={() => setUnassignTarget(item)}>↩</button></div> : '—'}</td></tr>)}</tbody></table>{assignments.length === 0 ? <div className="empty-state"><p>No hay material asignado.</p></div> : null}</div>}<div className="dialog-card__actions"><button className="button button--secondary" onClick={() => setSelectedPerson(null)}>Cerrar</button></div></section></div> : null}
 
-      {assignmentForm ? <div className="modal-backdrop modal-backdrop--nested"><form className="dialog-card" onSubmit={saveAssignment}><h2>Asignar material</h2><label className="field"><span>Origen</span><select value={assignmentForm.origen} onChange={(event) => setAssignmentForm({ ...emptyAssignment, origen: event.target.value })}><option value="almacen">Material procedente del almacén</option><option value="manual">Material manual</option></select></label>{assignmentForm.origen === 'almacen' ? <><label className="field"><span>Material</span><select required value={assignmentForm.material} onChange={(event) => setAssignmentForm({ ...assignmentForm, material: event.target.value, modelo: '' })}><option value="">Selecciona material</option>{materialOptions.map((item) => <option key={item}>{item}</option>)}</select></label><label className="field"><span>Modelo</span><select required value={assignmentForm.modelo} onChange={(event) => setAssignmentForm({ ...assignmentForm, modelo: event.target.value })}><option value="">Selecciona modelo</option>{modelOptions.map((item) => <option key={item.modelo} value={item.modelo}>{item.modelo}</option>)}</select><small>Stock disponible: {selectedStock}</small></label></> : <><label className="field"><span>Material</span><input required minLength={2} maxLength={100} value={assignmentForm.material} onChange={(event) => setAssignmentForm({ ...assignmentForm, material: event.target.value })} /></label><label className="field"><span>Modelo</span><input required maxLength={100} value={assignmentForm.modelo} onChange={(event) => setAssignmentForm({ ...assignmentForm, modelo: event.target.value })} /></label></>}<label className="field"><span>Cantidad</span><input type="number" min="1" max={assignmentForm.origen === 'almacen' ? selectedStock || 1 : 10000} required value={assignmentForm.cantidad} onChange={(event) => setAssignmentForm({ ...assignmentForm, cantidad: event.target.value })} /></label><label className="field"><span>Número de serie {requiresSerial(assignmentForm.material) ? '(obligatorio)' : '(opcional)'}</span><input required={requiresSerial(assignmentForm.material)} maxLength={150} value={assignmentForm.numeroSerie} onChange={(event) => setAssignmentForm({ ...assignmentForm, numeroSerie: event.target.value })} /></label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setAssignmentForm(null)}>Cancelar</button><button className="button button--primary" disabled={saving || (assignmentForm.origen === 'almacen' && !selectedStock)}>Asignar</button></div></form></div> : null}
+      {assignmentForm ? <div className="modal-backdrop modal-backdrop--nested"><form className="dialog-card" onSubmit={saveAssignment}><h2>Añadir material manual</h2><p>Este material no está relacionado con el almacén ni con pedidos de compra.</p><label className="field"><span>Material</span><input required minLength={2} maxLength={100} value={assignmentForm.material} onChange={(event) => setAssignmentForm({ ...assignmentForm, material: event.target.value })} placeholder="Mochila, llaves, tarjeta de acceso…" /></label><label className="field"><span>Modelo</span><input required maxLength={100} value={assignmentForm.modelo} onChange={(event) => setAssignmentForm({ ...assignmentForm, modelo: event.target.value })} /></label><label className="field"><span>Cantidad</span><input type="number" min="1" max="10000" required value={assignmentForm.cantidad} onChange={(event) => setAssignmentForm({ ...assignmentForm, cantidad: event.target.value })} /></label><label className="field"><span>Número de serie {requiresSerial(assignmentForm.material) ? '(obligatorio)' : '(opcional)'}</span><input required={requiresSerial(assignmentForm.material)} maxLength={150} value={assignmentForm.numeroSerie} onChange={(event) => setAssignmentForm({ ...assignmentForm, numeroSerie: event.target.value })} /></label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setAssignmentForm(null)}>Cancelar</button><button className="button button--primary" disabled={saving}>Añadir</button></div></form></div> : null}
 
       {serialEdit ? <div className="modal-backdrop modal-backdrop--nested"><form className="dialog-card" onSubmit={saveSerial}><h2>Editar número de serie</h2><p>{serialEdit.material} · {serialEdit.modelo}</p><label className="field"><span>Número de serie {requiresSerial(serialEdit.material) ? '(obligatorio)' : '(opcional)'}</span><input autoFocus required={requiresSerial(serialEdit.material)} maxLength={150} value={serialEdit.numeroSerie} onChange={(event) => setSerialEdit({ ...serialEdit, numeroSerie: event.target.value })} /></label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setSerialEdit(null)}>Cancelar</button><button className="button button--primary" disabled={saving}>Guardar</button></div></form></div> : null}
+      {unassignTarget ? <div className="modal-backdrop modal-backdrop--nested" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setUnassignTarget(null); }}><section className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="unassign-material-title"><div className="confirm-modal__icon confirm-modal__icon--neutral" aria-hidden="true">↩</div><h2 id="unassign-material-title">¿Deseas desasignar este material?</h2><p>{unassignTarget.origen === 'almacen' ? 'El material volverá al almacén y dejará de estar asociado a esta persona.' : 'El material dejará de estar asociado a esta persona. Al ser manual, no modifica el stock del almacén.'}</p><div className="confirm-modal__summary"><strong>{unassignTarget.material} · {unassignTarget.modelo}</strong><span>{unassignTarget.numeroSerie || 'Sin número de serie'} · Cantidad: {unassignTarget.cantidad}</span></div><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setUnassignTarget(null)} disabled={saving}>Cancelar</button><button className="button button--primary" type="button" onClick={handleUnassign} disabled={saving}>{saving ? 'Desasignando…' : 'Desasignar'}</button></div></section></div> : null}
       <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </PageShell>
   );

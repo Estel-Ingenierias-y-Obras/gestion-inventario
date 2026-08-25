@@ -6,7 +6,9 @@ const controller = require('../controllers/personController');
 const validators = require('../validators/personValidators');
 
 const router = express.Router();
-router.use(authenticate, requireWhitelist, requireAdmin);
+router.use(authenticate, requireWhitelist);
+router.get('/people/catalog', controller.listPeopleCatalog);
+router.use(requireAdmin);
 router.get('/departments/:departmentId', validators.departmentIdValidator, validateRequest, controller.getDepartment);
 router.get('/departments/:departmentId/people', validators.departmentIdValidator, validateRequest, controller.listPeople);
 router.post('/departments/:departmentId/people', validators.createPersonValidator, validateRequest, controller.createPerson);

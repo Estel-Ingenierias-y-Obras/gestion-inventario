@@ -44,4 +44,37 @@ const consumeStockFIFO = async ({ material, modelo, cantidad, session, consumedA
   return movements;
 };
 
-module.exports = { consumeStockFIFO };
+const returnStockToOriginalOrders = async ({ allocations, material, modelo, session }) => {
+  const movements = [];
+  for (const allocation of allocations) {
+    const order = await MaterialOrder.findById(allocation.materialOrderId).session(session);
+    if (!order || order.material !== material || order.modelo !== modelo) {
+      const error = new Error('No se puede localizar el pedido original del material asignado.');
+      error.statusCode = 409;
+      error.code = 'ORIGINAL_ORDER_NOT_AVAILABLE';
+      throw error;
+    }
+    const returned = Number(allocation.cantidadConsumida);
+    if (!Number.isInteger(returned) || returned < 1 || order.cantidadDisponible + returned > order.cantidadInicial) {
+      const error = new Error('El stock del pedido original no permite procesar esta devolución.');
+      error.statusCode = 409;
+      error.code = 'INVALID_STOCK_RETURN';
+      throw error;
+    }
+    const previousStock = order.cantidadDisponible;
+    order.cantidadDisponible += returned;
+    order.activo = true;
+    order.agotadoAt = null;
+    await order.save({ session });
+    movements.push({
+      materialOrderId: String(order._id),
+      numeroPedido: order.numeroPedido,
+      returned,
+      previousStock,
+      remainingStock: order.cantidadDisponible,
+    });
+  }
+  return movements;
+};
+
+module.exports = { consumeStockFIFO, returnStockToOriginalOrders };

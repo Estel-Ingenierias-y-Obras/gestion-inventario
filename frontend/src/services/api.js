@@ -56,6 +56,7 @@ export const createDepartment = (payload) => api.post('/api/departments', payloa
 export const deleteDepartment = (id) => api.delete(`/api/departments/${id}`);
 export const getDepartment = (id) => api.get(`/api/departments/${id}`);
 export const getDepartmentPeople = (departmentId) => api.get(`/api/departments/${departmentId}/people`);
+export const getPeopleCatalog = () => api.get('/api/people/catalog');
 export const createPerson = (departmentId, payload) => api.post(`/api/departments/${departmentId}/people`, payload);
 export const updatePerson = (personId, payload) => api.put(`/api/people/${personId}`, payload);
 export const deletePerson = (personId) => api.delete(`/api/people/${personId}`);

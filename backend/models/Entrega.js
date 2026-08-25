@@ -15,6 +15,12 @@ const entregaSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, 'El modelo no puede superar 100 caracteres'],
     },
+    numeroSerie: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: [150, 'El número de serie no puede superar 150 caracteres'],
+    },
     cantidad: {
       type: Number,
       required: [true, 'La cantidad es obligatoria'],
@@ -51,6 +57,12 @@ const entregaSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, 'El receptor no puede superar 100 caracteres'],
     },
+    personId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Person',
+      default: null,
+      index: true,
+    },
     departamento: {
       type: String,
       required: [true, 'El departamento es obligatorio'],
@@ -77,6 +89,12 @@ const entregaSchema = new mongoose.Schema(
       type: String,
       default: 'consulta',
       enum: ['admin', 'inventario', 'consulta'],
+    },
+    departmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department',
+      default: null,
+      index: true,
     },
     deleted: {
       type: Boolean,

@@ -11,7 +11,7 @@ const updatePersonValidator = [id('personId'), personName];
 const assignmentIdValidator = [id('personId'), id('assignmentId')];
 const createAssignmentValidator = [
   id('personId'),
-  body('origen').isIn(['almacen', 'manual']).withMessage('El origen debe ser almacén o manual.'),
+  body('origen').optional().equals('manual').withMessage('El material de una persona debe ser manual.'),
   body('material').trim().isLength({ min: 2, max: 100 }).withMessage('El material es obligatorio.'),
   body('modelo').trim().isLength({ min: 1, max: 100 }).withMessage('El modelo es obligatorio.'),
   body('cantidad').isInt({ min: 1, max: 10000 }).withMessage('La cantidad debe ser un entero positivo.'),

@@ -6,6 +6,7 @@ const personMaterialAssignmentSchema = new mongoose.Schema(
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true, index: true },
     departmentName: { type: String, required: true, trim: true, maxlength: 100 },
     personName: { type: String, required: true, trim: true, maxlength: 150 },
+    entregaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Entrega', default: null, index: true },
     material: { type: String, required: true, trim: true, maxlength: 100 },
     modelo: { type: String, required: true, trim: true, maxlength: 100 },
     cantidad: { type: Number, required: true, min: 1, validate: Number.isInteger },

@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Entrega = require('../models/Entrega');
 const Department = require('../models/Department');
+const Person = require('../models/Person');
+const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
 const auditLogger = require('../utils/auditLogger');
 const { consumeStockFIFO } = require('../services/stockService');
 const { sendDeliveryNotification } = require('../services/deliveryNotificationService');
@@ -48,31 +50,41 @@ const buildEntregaFilter = ({ period, search }) => {
 const crearEntrega = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
-    const { material, modelo, cantidad, receptor, departamento } = req.body;
+    const { material, modelo, cantidad, numeroSerie, personId, departmentId } = req.body;
     const usuario = req.user || {};
     const entregadoPor = normalizeString(usuario.name || usuario.email || 'Usuario autenticado');
     const datosLimpiados = {
       material: normalizeString(material),
       modelo: normalizeString(modelo),
+      numeroSerie: normalizeString(numeroSerie) || null,
       cantidad: Number(cantidad),
-      receptor: normalizeString(receptor),
-      departamento: normalizeString(departamento),
+      personId,
+      departmentId,
       entregadoPor,
       createdBy: usuario.email || '',
     };
 
-    const departmentExists = await Department.findOne({ name: datosLimpiados.departamento })
-      .collation({ locale: 'es', strength: 2 })
-      .lean();
-    if (!departmentExists) {
+    const person = await Person.findOne({
+      _id: personId,
+      departmentId,
+      deleted: { $ne: true },
+    }).lean();
+    if (!person) {
       return res.status(400).json({
         success: false,
-        code: 'DEPARTMENT_NOT_AVAILABLE',
-        message: 'El departamento seleccionado ya no está disponible.',
+        code: 'PERSON_NOT_AVAILABLE',
+        message: 'La persona seleccionada no existe o no pertenece al departamento indicado.',
       });
     }
+    const department = await Department.findById(person.departmentId).lean();
+    if (!department) {
+      return res.status(400).json({ success: false, code: 'DEPARTMENT_NOT_AVAILABLE', message: 'El departamento de la persona ya no está disponible.' });
+    }
+    datosLimpiados.receptor = person.nombreCompleto;
+    datosLimpiados.departamento = department.name;
 
     let entregaGuardada;
+    let materialAsignado;
     let stockMovements = [];
     await session.withTransaction(async () => {
       stockMovements = await consumeStockFIFO({
@@ -87,6 +99,22 @@ const crearEntrega = async (req, res, next) => {
         cantidadConsumida: movement.consumed,
       }));
       [entregaGuardada] = await Entrega.create([{ ...datosLimpiados, stockAllocations }], { session });
+      [materialAsignado] = await PersonMaterialAssignment.create([{
+        personId: person._id,
+        departmentId: department._id,
+        departmentName: department.name,
+        personName: person.nombreCompleto,
+        entregaId: entregaGuardada._id,
+        material: datosLimpiados.material,
+        modelo: datosLimpiados.modelo,
+        cantidad: datosLimpiados.cantidad,
+        origen: 'almacen',
+        numeroSerie: datosLimpiados.numeroSerie,
+        numeroPedido: [...new Set(stockAllocations.map((allocation) => allocation.numeroPedido))].join(', '),
+        stockAllocations,
+        assignedAt: entregaGuardada.fechaEntrega,
+        assignedBy: usuario.email || '',
+      }], { session });
     });
 
     await auditLogger({
@@ -104,6 +132,24 @@ const crearEntrega = async (req, res, next) => {
       details: {
         entregaId: String(entregaGuardada._id), material: datosLimpiados.material,
         modelo: datosLimpiados.modelo, cantidad: datosLimpiados.cantidad, movements: stockMovements,
+      },
+      req,
+    });
+
+    await auditLogger({
+      action: 'MATERIAL_ASSIGNED_TO_PERSON',
+      entity: 'PersonMaterialAssignment',
+      user: req.user,
+      details: {
+        assignmentId: String(materialAsignado._id),
+        entregaId: String(entregaGuardada._id),
+        departamento: department.name,
+        persona: person.nombreCompleto,
+        personId: String(person._id),
+        material: datosLimpiados.material,
+        modelo: datosLimpiados.modelo,
+        numeroSerie: datosLimpiados.numeroSerie,
+        cantidad: datosLimpiados.cantidad,
       },
       req,
     });
