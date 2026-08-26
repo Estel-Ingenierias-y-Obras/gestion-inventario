@@ -30,7 +30,7 @@ const requireWhitelist = async (req, res, next) => {
       });
     }
 
-    req.access = { isAdmin: false, email };
+    req.access = { isAdmin: true, email };
     return next();
   } catch (error) {
     return next(error);
