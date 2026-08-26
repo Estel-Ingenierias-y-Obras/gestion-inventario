@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
 import SortableHeader from '../components/SortableHeader';
@@ -16,11 +16,12 @@ const columnTypes = { cantidadInicial: 'number', cantidadDisponible: 'number', c
 const descendingByDefault = new Set(['cantidadInicial', 'cantidadDisponible', 'createdAt']);
 
 function Almacen() {
+  const { material: materialParam = '' } = useParams();
+  const selectedMaterial = materialParam;
   const { isAdmin } = useAccess();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [search, setSearch] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'material', direction: 'asc' });
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState(emptyForm);
@@ -57,12 +58,9 @@ function Almacen() {
   }, [busyId, confirmingEdit, deleteTarget, editTarget]);
 
   const filteredOrders = useMemo(() => {
-    const query = normalizeSearch(search.trim());
-    const filtered = query ? orders.filter((order) => [
-      order.numeroPedido, order.material, order.modelo, order.proveedor,
-    ].some((value) => normalizeSearch(value).includes(query))) : orders;
+    const filtered = orders.filter((order) => normalizeSearch(order.material) === normalizeSearch(selectedMaterial));
     return sortRows(filtered, sortConfig, columnTypes);
-  }, [orders, search, sortConfig]);
+  }, [orders, selectedMaterial, sortConfig]);
 
   const handleSort = (key) => {
     setSortConfig((current) => nextSortConfig(current, key, descendingByDefault.has(key) ? 'desc' : 'asc'));
@@ -153,26 +151,21 @@ function Almacen() {
 
   return (
     <PageShell
-      title="Almacén"
-      subtitle="Stock disponible y pedidos pendientes de recepción"
+      title={selectedMaterial}
+      subtitle="Pedidos activos y stock disponible de este material"
       actions={(
         <div className="warehouse-page-actions">
-          <div className="search-box">
-            <span className="search-box__icon" aria-hidden="true">⌕</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar pedido, material, modelo, proveedor…" aria-label="Buscar pedidos de almacén" />
-            {search ? <button type="button" className="search-box__clear" onClick={() => setSearch('')} aria-label="Limpiar búsqueda">×</button> : null}
-          </div>
-          <div className="page-action-group"><Link className="button button--secondary" to="/almacen/historial">Ver historial de pedidos</Link><Link className="button button--primary" to="/registro-material">+ Registrar material</Link></div>
+          <div className="page-action-group"><Link className="button button--secondary" to="/almacen">← Volver a almacén</Link><Link className="button button--primary" to="/registro-material">+ Registrar material</Link></div>
         </div>
       )}
     >
       <section className="panel">
         <div className="panel__header panel__header--compact"><div><h2>Pedidos activos</h2><p>{filteredOrders.length} {filteredOrders.length === 1 ? 'pedido encontrado' : 'pedidos encontrados'}</p></div></div>
-        {loading ? <div className="panel__body"><LoadingState rows={6} /></div> : filteredOrders.length === 0 ? <div className="empty-state"><span className="empty-state__icon" aria-hidden="true">⌕</span><strong>Sin resultados</strong><p>{search ? 'No hay pedidos que coincidan con la búsqueda.' : 'Registra una compra para comenzar.'}</p></div> : (
-          <div className="table-scroll"><table className="data-table warehouse-table"><thead><tr><SortableHeader label="N.º pedido" sortKey="numeroPedido" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Material" sortKey="material" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Modelo" sortKey="modelo" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Inicial" sortKey="cantidadInicial" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Disponible" sortKey="cantidadDisponible" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Fecha creación" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} /><th>Recepción</th>{isAdmin ? <th className="actions-column">Acciones</th> : null}</tr></thead><tbody>{filteredOrders.map((order) => (
+        {loading ? <div className="panel__body"><LoadingState rows={6} /></div> : filteredOrders.length === 0 ? <div className="empty-state"><span className="empty-state__icon" aria-hidden="true">⌕</span><strong>Sin pedidos activos</strong><p>No hay pedidos activos para este material.</p></div> : (
+          <div className="table-scroll"><table className="data-table warehouse-table"><thead><tr><SortableHeader label="N.º pedido" sortKey="numeroPedido" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Modelo" sortKey="modelo" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Cantidad inicial" sortKey="cantidadInicial" sortConfig={sortConfig} onSort={handleSort} /><SortableHeader label="Cantidad disponible" sortKey="cantidadDisponible" sortConfig={sortConfig} onSort={handleSort} /><th>Recepción</th><SortableHeader label="Fecha creación" sortKey="createdAt" sortConfig={sortConfig} onSort={handleSort} />{isAdmin ? <th className="actions-column">Acciones</th> : null}</tr></thead><tbody>{filteredOrders.map((order) => (
             <tr key={order._id} className="warehouse-table__editable-row" role="button" tabIndex="0" aria-label={`Editar pedido ${order.numeroPedido}`} onClick={() => openEdit(order)} onKeyDown={(event) => {
               if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEdit(order); }
-            }}><td><strong>{order.numeroPedido}</strong></td><td>{order.material}</td><td>{order.modelo}</td><td>{order.cantidadInicial}</td><td><strong>{order.cantidadDisponible}</strong></td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td><td><span className={`warehouse-status warehouse-status--${order.recibido ? 'received' : 'pending'}`}>{order.recibido ? '● Recibido' : '● Pendiente recepción'}</span></td>{isAdmin ? <td className="actions-column"><div className="table-actions"><button className="icon-button icon-button--delete" type="button" onClick={(event) => actionClick(event, () => setDeleteTarget(order))} disabled={busyId === order._id} aria-label={`Eliminar pedido ${order.numeroPedido}`} title="Eliminar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg></button></div></td> : null}</tr>
+            }}><td><strong>{order.numeroPedido || '-'}</strong></td><td>{order.modelo}</td><td>{order.cantidadInicial}</td><td><strong>{order.cantidadDisponible}</strong></td><td><span className={`warehouse-status warehouse-status--${order.recibido ? 'received' : 'pending'}`}>{order.recibido ? '● Recibido' : '● Pendiente recepción'}</span></td><td>{new Date(order.createdAt).toLocaleDateString('es-ES')}</td>{isAdmin ? <td className="actions-column"><div className="table-actions"><button className="icon-button icon-button--delete" type="button" onClick={(event) => actionClick(event, () => setDeleteTarget(order))} disabled={busyId === order._id} aria-label={`Eliminar pedido ${order.numeroPedido || '-'}`} title="Eliminar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg></button></div></td> : null}</tr>
           ))}</tbody></table></div>
         )}
       </section>
@@ -189,13 +182,13 @@ function Almacen() {
 
       {editTarget && confirmingEdit ? <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busyId) setConfirmingEdit(false); }}><section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-edit-title">
         <div className="confirm-modal__icon confirm-modal__icon--neutral" aria-hidden="true">?</div>
-        <div className="confirm-modal__content"><h2 id="confirm-edit-title">¿Deseas guardar los cambios realizados en este pedido?</h2><div className="confirm-modal__summary"><strong>{editForm.numeroPedido}</strong><span>{editForm.material} · {editForm.modelo} · {editForm.cantidad} unidades</span></div></div>
+        <div className="confirm-modal__content"><h2 id="confirm-edit-title">¿Deseas guardar los cambios realizados en este pedido?</h2><div className="confirm-modal__summary"><strong>{editForm.numeroPedido || '-'}</strong><span>{editForm.material} · {editForm.modelo} · {editForm.cantidad} unidades</span></div></div>
         <div className="confirm-modal__actions"><button className="button button--secondary" type="button" onClick={() => setConfirmingEdit(false)} disabled={busyId === editTarget._id}>Cancelar</button><button className="button button--primary" type="button" onClick={saveEdit} disabled={busyId === editTarget._id}>{busyId === editTarget._id ? 'Guardando…' : 'Guardar cambios'}</button></div>
       </section></div> : null}
 
       {deleteTarget ? <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busyId) setDeleteTarget(null); }}><section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-order-title" aria-describedby="delete-order-description">
         <div className="confirm-modal__icon" aria-hidden="true">!</div>
-        <div className="confirm-modal__content"><h2 id="delete-order-title">¿Deseas eliminar este pedido?</h2><p id="delete-order-description">Esta acción no se puede deshacer.</p><div className="confirm-modal__summary"><strong>{deleteTarget.numeroPedido}</strong><span>{deleteTarget.material} · {deleteTarget.modelo} · {deleteTarget.cantidadDisponible} unidades restantes</span></div></div>
+        <div className="confirm-modal__content"><h2 id="delete-order-title">¿Deseas eliminar este pedido?</h2><p id="delete-order-description">Esta acción no se puede deshacer.</p><div className="confirm-modal__summary"><strong>{deleteTarget.numeroPedido || '-'}</strong><span>{deleteTarget.material} · {deleteTarget.modelo} · {deleteTarget.cantidadDisponible} unidades restantes</span></div></div>
         <div className="confirm-modal__actions"><button className="button button--secondary" type="button" onClick={() => setDeleteTarget(null)} disabled={busyId === deleteTarget._id}>Cancelar</button><button className="button button--danger" type="button" onClick={handleDelete} disabled={busyId === deleteTarget._id}>{busyId === deleteTarget._id ? 'Eliminando…' : 'Eliminar'}</button></div>
       </section></div> : null}
       <Toast message={toast?.message} type={toast?.type} onClose={closeToast} />

@@ -50,19 +50,10 @@ const buildEntregaFilter = ({ period, search }) => {
 const crearEntrega = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
-    const { material, modelo, cantidad, numeroSerie, personId, departmentId } = req.body;
+    const { personId, departmentId } = req.body;
+    const requestedItems = Array.isArray(req.body.items) ? req.body.items : [];
     const usuario = req.user || {};
     const entregadoPor = normalizeString(usuario.name || usuario.email || 'Usuario autenticado');
-    const datosLimpiados = {
-      material: normalizeString(material),
-      modelo: normalizeString(modelo),
-      numeroSerie: normalizeString(numeroSerie) || null,
-      cantidad: Number(cantidad),
-      personId,
-      departmentId,
-      entregadoPor,
-      createdBy: usuario.email || '',
-    };
 
     const person = await Person.findOne({
       _id: personId,
@@ -80,114 +71,76 @@ const crearEntrega = async (req, res, next) => {
     if (!department) {
       return res.status(400).json({ success: false, code: 'DEPARTMENT_NOT_AVAILABLE', message: 'El departamento de la persona ya no está disponible.' });
     }
-    datosLimpiados.receptor = person.nombreCompleto;
-    datosLimpiados.departamento = department.name;
-
-    let entregaGuardada;
-    let materialAsignado;
-    let stockMovements = [];
+    const operationId = new mongoose.Types.ObjectId();
+    const entregasGuardadas = [];
+    const assignments = [];
+    const allStockMovements = [];
     await session.withTransaction(async () => {
-      stockMovements = await consumeStockFIFO({
-        material: datosLimpiados.material,
-        modelo: datosLimpiados.modelo,
-        cantidad: datosLimpiados.cantidad,
-        session,
-      });
-      const stockAllocations = stockMovements.map((movement) => ({
-        materialOrderId: movement.materialOrderId,
-        numeroPedido: movement.numeroPedido,
-        cantidadConsumida: movement.consumed,
-      }));
-      [entregaGuardada] = await Entrega.create([{ ...datosLimpiados, stockAllocations }], { session });
-      [materialAsignado] = await PersonMaterialAssignment.create([{
-        personId: person._id,
-        departmentId: department._id,
-        departmentName: department.name,
-        personName: person.nombreCompleto,
-        entregaId: entregaGuardada._id,
-        material: datosLimpiados.material,
-        modelo: datosLimpiados.modelo,
-        cantidad: datosLimpiados.cantidad,
-        origen: 'almacen',
-        numeroSerie: datosLimpiados.numeroSerie,
-        numeroPedido: [...new Set(stockAllocations.map((allocation) => allocation.numeroPedido))].join(', '),
-        stockAllocations,
-        assignedAt: entregaGuardada.fechaEntrega,
-        assignedBy: usuario.email || '',
-      }], { session });
+      for (const item of requestedItems) {
+        const data = {
+          material: normalizeString(item.material), modelo: normalizeString(item.modelo),
+          numeroSerie: normalizeString(item.numeroSerie) || null, cantidad: Number(item.cantidad),
+        };
+        const stockMovements = await consumeStockFIFO({ ...data, session });
+        const stockAllocations = stockMovements.map((movement) => ({
+          materialOrderId: movement.materialOrderId,
+          numeroPedido: movement.numeroPedido,
+          cantidadConsumida: movement.consumed,
+        }));
+        const transferSources = stockMovements.flatMap((movement) => movement.transferSources || []);
+        const [delivery] = await Entrega.create([{
+          ...data, personId, departmentId, operationId, transferSources,
+          receptor: person.nombreCompleto, departamento: department.name,
+          entregadoPor, createdBy: usuario.email || '', stockAllocations,
+        }], { session });
+        const [assignment] = await PersonMaterialAssignment.create([{
+          personId: person._id, departmentId: department._id, operationId,
+          departmentName: department.name, personName: person.nombreCompleto,
+          entregaId: delivery._id, material: data.material, modelo: data.modelo,
+          cantidad: data.cantidad, origen: 'almacen', numeroSerie: data.numeroSerie,
+          numeroPedido: [...new Set(stockAllocations.map((allocation) => allocation.numeroPedido).filter(Boolean))].join(', ') || null,
+          stockAllocations, transferSources, assignedAt: delivery.fechaEntrega, assignedBy: usuario.email || '',
+        }], { session });
+        entregasGuardadas.push(delivery);
+        assignments.push(assignment);
+        allStockMovements.push({ delivery, assignment, movements: stockMovements });
+      }
     });
 
-    await auditLogger({
-      action: 'CREATE',
-      entity: 'Entrega',
-      user: { name: usuario.name, email: usuario.email, oid: usuario.oid },
-      details: { entregaId: entregaGuardada._id.toString(), material: datosLimpiados.material, receptor: datosLimpiados.receptor },
-      req,
-    });
-
-    await auditLogger({
-      action: 'STOCK_CONSUMED',
-      entity: 'MaterialOrder',
-      user: req.user,
-      details: {
-        entregaId: String(entregaGuardada._id), material: datosLimpiados.material,
-        modelo: datosLimpiados.modelo, cantidad: datosLimpiados.cantidad, movements: stockMovements,
-      },
-      req,
-    });
-
-    await auditLogger({
-      action: 'MATERIAL_ASSIGNED_TO_PERSON',
-      entity: 'PersonMaterialAssignment',
-      user: req.user,
-      details: {
-        assignmentId: String(materialAsignado._id),
-        entregaId: String(entregaGuardada._id),
-        departamento: department.name,
-        persona: person.nombreCompleto,
-        personId: String(person._id),
-        material: datosLimpiados.material,
-        modelo: datosLimpiados.modelo,
-        numeroSerie: datosLimpiados.numeroSerie,
-        cantidad: datosLimpiados.cantidad,
-      },
-      req,
-    });
-
-    for (const movement of stockMovements) {
-      await auditLogger({
-        action: 'STOCK_UPDATED',
-        entity: 'MaterialOrder',
-        user: req.user,
-        details: {
-          entregaId: String(entregaGuardada._id), material: datosLimpiados.material,
-          modelo: datosLimpiados.modelo, stockAnterior: movement.previousStock,
-          stockNuevo: movement.remainingStock, cantidadEntregada: movement.consumed,
-          materialOrderId: movement.materialOrderId, numeroPedido: movement.numeroPedido,
-        },
-        req,
-      });
-    }
-
-    for (const movement of stockMovements.filter((item) => item.depleted)) {
-      await auditLogger({
-        action: 'MATERIAL_ORDER_DEPLETED',
-        entity: 'MaterialOrder',
-        user: req.user,
-        details: { ...movement, entregaId: String(entregaGuardada._id) },
-        req,
-      });
+    for (const entry of allStockMovements) {
+      const { delivery, assignment, movements } = entry;
+      const common = { operationId: String(operationId), entregaId: String(delivery._id), material: delivery.material, modelo: delivery.modelo };
+      await auditLogger({ action: 'CREATE', entity: 'Entrega', user: req.user,
+        details: { ...common, receptor: delivery.receptor }, req });
+      await auditLogger({ action: 'STOCK_CONSUMED', entity: 'MaterialOrder', user: req.user,
+        details: { ...common, cantidad: delivery.cantidad, movements }, req });
+      await auditLogger({ action: 'MATERIAL_ASSIGNED_TO_PERSON', entity: 'PersonMaterialAssignment', user: req.user,
+        details: { ...common, assignmentId: String(assignment._id), departamento: department.name,
+          persona: person.nombreCompleto, personId: String(person._id), numeroSerie: delivery.numeroSerie,
+          cantidad: delivery.cantidad, transferSources: delivery.transferSources }, req });
+      for (const movement of movements) {
+        await auditLogger({ action: 'STOCK_UPDATED', entity: 'MaterialOrder', user: req.user,
+          details: { ...common, stockAnterior: movement.previousStock, stockNuevo: movement.remainingStock,
+            cantidadEntregada: movement.consumed, materialOrderId: movement.materialOrderId,
+            numeroPedido: movement.numeroPedido }, req });
+        if (movement.depleted) await auditLogger({ action: 'MATERIAL_ORDER_DEPLETED', entity: 'MaterialOrder', user: req.user,
+          details: { ...movement, ...common }, req });
+      }
     }
 
     let notificationSent = true;
     try {
-      await sendDeliveryNotification(entregaGuardada);
+      await sendDeliveryNotification({
+        operationId, receptor: person.nombreCompleto, departamento: department.name,
+        fechaEntrega: entregasGuardadas[0].fechaEntrega, entregadoPor,
+        deliveries: entregasGuardadas,
+      });
     } catch (notificationError) {
       notificationSent = false;
       console.error('[DELIVERY NOTIFICATION] No se pudo enviar el correo.', { name: notificationError.name });
     }
 
-    return res.status(201).json({ success: true, data: entregaGuardada, notificationSent });
+    return res.status(201).json({ success: true, data: { operationId, deliveries: entregasGuardadas }, notificationSent });
   } catch (error) {
     return next(error);
   } finally {

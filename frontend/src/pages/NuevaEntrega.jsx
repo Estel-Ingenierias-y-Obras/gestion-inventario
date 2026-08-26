@@ -1,165 +1,107 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PageShell from '../components/PageShell';
 import Toast from '../components/Toast';
-import { createEntrega, getPeopleCatalog, getStockCatalog } from '../services/api';
+import { createEntrega, getDepartments, getPeopleCatalog, getStockCatalog } from '../services/api';
 
-const initialState = { material: '', modelo: '', numeroSerie: '', cantidad: '', personId: '', departmentId: '' };
-const normalizeSearch = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
+const emptyLine = { material: '', modelo: '', numeroSerie: '', cantidad: '' };
 
 function NuevaEntrega() {
-  const [form, setForm] = useState(initialState);
+  const [catalog, setCatalog] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [departmentId, setDepartmentId] = useState('');
+  const [personId, setPersonId] = useState('');
+  const [line, setLine] = useState(emptyLine);
+  const [items, setItems] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [catalog, setCatalog] = useState([]);
-  const [people, setPeople] = useState([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
-  const [recipientQuery, setRecipientQuery] = useState('');
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [toast, setToast] = useState(null);
   const closeToast = useCallback(() => setToast(null), []);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
-    try {
-      const response = await getStockCatalog();
-      setCatalog(response.data?.data || []);
-    } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo cargar el stock disponible.' });
-    } finally {
-      setCatalogLoading(false);
-    }
+    try { const response = await getStockCatalog(); setCatalog(response.data?.data || []); }
+    catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo cargar el stock disponible.' }); }
+    finally { setCatalogLoading(false); }
   }, []);
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
-
   useEffect(() => {
     let active = true;
-    getPeopleCatalog()
-      .then((response) => { if (active) setPeople(response.data?.data || []); })
+    Promise.all([getPeopleCatalog(), getDepartments()]).then(([peopleResponse, departmentsResponse]) => {
+      if (active) { setPeople(peopleResponse.data?.data || []); setDepartments(departmentsResponse.data?.data || []); }
+    })
       .catch((error) => { if (active) setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudieron cargar las personas.' }); })
       .finally(() => { if (active) setPeopleLoading(false); });
     return () => { active = false; };
   }, []);
 
+  const departmentPeople = useMemo(() => people.filter((person) => String(person.departmentId) === departmentId), [departmentId, people]);
   const materials = useMemo(() => [...new Set(catalog.map((item) => item.material))], [catalog]);
-  const models = useMemo(() => catalog.filter((item) => item.material === form.material), [catalog, form.material]);
-  const selectedStock = models.find((item) => item.modelo === form.modelo)?.cantidadDisponible || 0;
-  const selectedPerson = people.find((person) => person._id === form.personId);
-  const recipientSuggestions = useMemo(() => {
-    const query = normalizeSearch(recipientQuery);
-    if (!query) return [];
-    return people.filter((person) => normalizeSearch(person.nombreCompleto).includes(query)).slice(0, 8);
-  }, [people, recipientQuery]);
+  const models = useMemo(() => catalog.filter((item) => item.material === line.material), [catalog, line.material]);
+  const stock = models.find((item) => item.modelo === line.modelo)?.cantidadDisponible || 0;
+  const reserved = items.filter((item) => item.material === line.material && item.modelo === line.modelo)
+    .reduce((total, item) => total + item.cantidad, 0);
+  const available = Math.max(stock - reserved, 0);
+  const selectedPerson = people.find((person) => person._id === personId);
 
-  const validate = () => {
-    const nextErrors = {};
-    ['material', 'modelo', 'personId', 'departmentId'].forEach((key) => {
-      if (!String(form[key]).trim()) nextErrors[key] = 'Este campo es obligatorio';
-    });
-    const quantity = Number(form.cantidad);
-    if (!Number.isInteger(quantity) || quantity < 1) nextErrors.cantidad = 'La cantidad debe ser un número entero mayor que cero';
-    else if (quantity > selectedStock) nextErrors.cantidad = 'No hay suficiente stock disponible';
-    return nextErrors;
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const nextErrors = validate();
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
-      setToast({ type: 'error', message: 'Revisa los campos marcados antes de continuar.' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await createEntrega({ ...form, cantidad: Number(form.cantidad) });
-      setForm(initialState);
-      setRecipientQuery('');
-      setSuggestionsOpen(false);
-      setToast({ type: 'success', message: 'Entrega creada correctamente.' });
-      await loadCatalog();
-    } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'Error al realizar la operación.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateField = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
+  const updateLine = (field, value) => {
+    setLine((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: '' }));
   };
 
-  const updateMaterial = (value) => {
-    setForm((current) => ({ ...current, material: value, modelo: '', cantidad: '' }));
-    setErrors((current) => ({ ...current, material: '', modelo: '', cantidad: '' }));
+  const addLine = () => {
+    const nextErrors = {};
+    const quantity = Number(line.cantidad);
+    if (!line.material) nextErrors.material = 'Selecciona un material.';
+    if (!line.modelo) nextErrors.modelo = 'Selecciona un modelo.';
+    if (!Number.isInteger(quantity) || quantity < 1) nextErrors.cantidad = 'Introduce una cantidad válida.';
+    else if (quantity > available) nextErrors.cantidad = 'No hay suficiente stock disponible.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+    setItems((current) => [...current, { ...line, cantidad: quantity, id: crypto.randomUUID() }]);
+    setLine(emptyLine);
   };
 
-  const updateModel = (value) => {
-    setForm((current) => ({ ...current, modelo: value, cantidad: '' }));
-    setErrors((current) => ({ ...current, modelo: '', cantidad: '' }));
-  };
-
-  const selectPerson = (person) => {
-    setForm((current) => ({ ...current, personId: person._id, departmentId: person.departmentId }));
-    setRecipientQuery(person.nombreCompleto);
-    setSuggestionsOpen(false);
-    setActiveSuggestion(-1);
-    setErrors((current) => ({ ...current, personId: '', departmentId: '' }));
-  };
-
-  const updateRecipientQuery = (value) => {
-    setRecipientQuery(value);
-    setForm((current) => ({ ...current, personId: '', departmentId: '' }));
-    setSuggestionsOpen(Boolean(value.trim()));
-    setActiveSuggestion(-1);
-    setErrors((current) => ({ ...current, personId: '', departmentId: '' }));
-  };
-
-  const handleRecipientKeyDown = (event) => {
-    if (!suggestionsOpen || recipientSuggestions.length === 0) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setActiveSuggestion((current) => (current + 1) % recipientSuggestions.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setActiveSuggestion((current) => (current <= 0 ? recipientSuggestions.length - 1 : current - 1));
-    } else if (event.key === 'Enter' && activeSuggestion >= 0) {
-      event.preventDefault();
-      selectPerson(recipientSuggestions[activeSuggestion]);
-    } else if (event.key === 'Escape') {
-      setSuggestionsOpen(false);
-      setActiveSuggestion(-1);
-    }
-  };
-
-  const updateQuantity = (value) => {
-    if (!/^\d*$/.test(value)) return;
-    if (value && Number(value) > selectedStock) {
-      setErrors((current) => ({ ...current, cantidad: 'No hay suficiente stock disponible' }));
+  const save = async (event) => {
+    event.preventDefault();
+    if (!departmentId || !personId || items.length === 0) {
+      setToast({ type: 'error', message: 'Selecciona departamento, persona y añade al menos un material.' });
       return;
     }
-    updateField('cantidad', value);
+    setLoading(true);
+    try {
+      const response = await createEntrega({ departmentId, personId, items: items.map(({ id: _id, ...item }) => item) });
+      setItems([]); setLine(emptyLine);
+      setToast({ type: 'success', message: response.data?.notificationSent === false
+        ? 'Entrega guardada. No se pudo enviar el correo resumen.' : 'Entrega guardada y correo resumen enviado.' });
+      await loadCatalog();
+    } catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo registrar la entrega.' }); }
+    finally { setLoading(false); }
   };
 
   return (
-    <PageShell title="Nueva entrega" subtitle="Registra una asignación de material al equipo">
-      <form onSubmit={handleSubmit} className="form-card" noValidate>
-        <div className="form-card__header"><div><h2>Datos de la entrega</h2><p>El número de serie es opcional; el resto de campos son obligatorios.</p></div><span className="status-badge"><span /> Registro seguro</span></div>
-        <div className="form-grid">
-          <label className="field"><span>Material</span><select value={form.material} onChange={(event) => updateMaterial(event.target.value)} className={errors.material ? 'field__input--error' : ''} disabled={catalogLoading}><option value="" disabled>{catalogLoading ? 'Cargando materiales…' : 'Selecciona un material'}</option>{materials.map((material) => <option key={material} value={material}>{material}</option>)}</select>{errors.material ? <small>{errors.material}</small> : null}</label>
-          <label className="field"><span>Modelo</span><select value={form.modelo} onChange={(event) => updateModel(event.target.value)} className={errors.modelo ? 'field__input--error' : ''} disabled={!form.material}><option value="" disabled>Selecciona un modelo</option>{models.map((item) => <option key={item.modelo} value={item.modelo}>{item.modelo}</option>)}</select>{errors.modelo ? <small>{errors.modelo}</small> : null}</label>
-          <div className={`stock-availability${form.modelo ? ' stock-availability--available' : ''}`}><span>Stock disponible</span><strong>{form.modelo ? `${selectedStock} unidades` : 'Selecciona un modelo'}</strong></div>
-          <label className="field"><span>Cantidad</span><input type="number" min="1" max={selectedStock || undefined} step="1" value={form.cantidad} onChange={(event) => updateQuantity(event.target.value)} className={errors.cantidad ? 'field__input--error' : ''} disabled={!form.modelo || selectedStock < 1} />{errors.cantidad ? <small>{errors.cantidad}</small> : null}</label>
-          <label className="field"><span>Número de serie <small>(opcional)</small></span><input value={form.numeroSerie} maxLength={150} onChange={(event) => updateField('numeroSerie', event.target.value)} placeholder="Introduce el número de serie" /></label>
-          <div className="field recipient-combobox"><label htmlFor="recipient-search">Receptor</label><input id="recipient-search" role="combobox" autoComplete="off" aria-autocomplete="list" aria-expanded={suggestionsOpen && recipientSuggestions.length > 0} aria-controls="recipient-suggestions" aria-activedescendant={activeSuggestion >= 0 ? `recipient-option-${activeSuggestion}` : undefined} value={recipientQuery} onChange={(event) => updateRecipientQuery(event.target.value)} onFocus={() => setSuggestionsOpen(Boolean(recipientQuery.trim()))} onBlur={() => setTimeout(() => setSuggestionsOpen(false), 120)} onKeyDown={handleRecipientKeyDown} placeholder={peopleLoading ? 'Cargando personas…' : 'Escribe para buscar una persona'} disabled={peopleLoading || people.length === 0} className={errors.personId ? 'field__input--error' : ''} />{suggestionsOpen && recipientQuery.trim() ? <div className="recipient-suggestions" id="recipient-suggestions" role="listbox">{recipientSuggestions.length > 0 ? recipientSuggestions.map((person, index) => <button id={`recipient-option-${index}`} className={`recipient-suggestion${activeSuggestion === index ? ' recipient-suggestion--active' : ''}`} type="button" role="option" aria-selected={activeSuggestion === index} key={person._id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectPerson(person)}><strong>{person.nombreCompleto}</strong><span>{person.departmentName}</span></button>) : <p>No hay personas que coincidan.</p>}</div> : null}{errors.personId ? <small>{errors.personId}</small> : null}</div>
-          <label className="field"><span>Departamento</span><input value={selectedPerson?.departmentName || ''} placeholder="Se completa al seleccionar una persona" readOnly aria-readonly="true" className={errors.departmentId ? 'field__input--error' : ''} />{errors.departmentId ? <small>{errors.departmentId}</small> : null}</label>
-          <div className="authenticated-user"><span className="authenticated-user__icon">✓</span><div><small>Entregado por</small><strong>Usuario autenticado</strong></div></div>
-        </div>
-        <div className="form-actions"><span>La fecha y el usuario se registrarán automáticamente.</span><button type="submit" disabled={loading} className="button button--primary">{loading ? 'Guardando…' : 'Guardar entrega'}</button></div>
+    <PageShell title="Nueva entrega" subtitle="Asigna varios materiales a una persona en una única operación">
+      <form className="delivery-flow" onSubmit={save} noValidate>
+        <section className="form-card delivery-step"><div className="form-card__header"><div><h2>1. Departamento</h2><p>Selecciona el departamento receptor.</p></div></div>
+          <label className="field"><span>Departamento</span><select value={departmentId} disabled={peopleLoading} onChange={(event) => { setDepartmentId(event.target.value); setPersonId(''); }}><option value="">{peopleLoading ? 'Cargando departamentos…' : 'Selecciona un departamento'}</option>{departments.map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}</select></label>
+        </section>
+        <section className={`form-card delivery-step${!departmentId ? ' delivery-step--disabled' : ''}`}><div className="form-card__header"><div><h2>2. Persona</h2><p>Solo se muestran personas del departamento seleccionado.</p></div></div>
+          <label className="field"><span>Persona</span><select value={personId} disabled={!departmentId} onChange={(event) => setPersonId(event.target.value)}><option value="">Selecciona una persona</option>{departmentPeople.map((person) => <option key={person._id} value={person._id}>{person.nombreCompleto}</option>)}</select></label>
+        </section>
+        <section className={`form-card delivery-step${!personId ? ' delivery-step--disabled' : ''}`}><div className="form-card__header"><div><h2>3. Materiales</h2><p>Añade todas las líneas que formarán parte de la entrega a {selectedPerson?.nombreCompleto || 'la persona seleccionada'}.</p></div></div>
+          <div className="form-grid delivery-line-editor">
+            <label className="field"><span>Material</span><select value={line.material} disabled={!personId || catalogLoading} className={errors.material ? 'field__input--error' : ''} onChange={(event) => { setLine({ ...emptyLine, material: event.target.value }); setErrors({}); }}><option value="">Selecciona un material</option>{materials.map((material) => <option key={material}>{material}</option>)}</select>{errors.material ? <small>{errors.material}</small> : null}</label>
+            <label className="field"><span>Modelo</span><select value={line.modelo} disabled={!line.material} className={errors.modelo ? 'field__input--error' : ''} onChange={(event) => { setLine((current) => ({ ...current, modelo: event.target.value, cantidad: '' })); setErrors({}); }}><option value="">Selecciona un modelo</option>{models.map((model) => <option key={model.modelo}>{model.modelo}</option>)}</select>{errors.modelo ? <small>{errors.modelo}</small> : null}</label>
+            <label className="field"><span>Cantidad</span><input type="number" min="1" max={available || undefined} value={line.cantidad} disabled={!line.modelo} className={errors.cantidad ? 'field__input--error' : ''} onChange={(event) => updateLine('cantidad', event.target.value)} />{errors.cantidad ? <small>{errors.cantidad}</small> : <small>{line.modelo ? `${available} unidades disponibles` : 'Selecciona un modelo'}</small>}</label>
+            <label className="field"><span>Número de serie <small>(opcional)</small></span><input maxLength={150} value={line.numeroSerie} disabled={!line.modelo} onChange={(event) => updateLine('numeroSerie', event.target.value)} /></label>
+          </div>
+          <div className="delivery-add-line"><button className="button button--secondary" type="button" onClick={addLine} disabled={!personId}>+ Añadir material</button></div>
+          <div className="delivery-summary"><h3>Resumen temporal</h3>{items.length === 0 ? <div className="empty-state"><p>Aún no has añadido materiales.</p></div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Material</th><th>Modelo</th><th>Cantidad</th><th>Número de serie</th><th>Acciones</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.material}</strong></td><td>{item.modelo}</td><td>{item.cantidad}</td><td>{item.numeroSerie || '-'}</td><td><button className="icon-button icon-button--delete" type="button" title="Quitar" onClick={() => setItems((current) => current.filter((row) => row.id !== item.id))}>×</button></td></tr>)}</tbody></table></div>}</div>
+          <div className="form-actions"><span>Se registrarán {items.length} {items.length === 1 ? 'línea' : 'líneas'} y se enviará un único correo.</span><button className="button button--primary" disabled={loading || items.length === 0}>{loading ? 'Guardando…' : 'Guardar entrega'}</button></div>
+        </section>
       </form>
       <Toast message={toast?.message} type={toast?.type} onClose={closeToast} />
     </PageShell>

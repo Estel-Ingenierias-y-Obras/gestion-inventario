@@ -9,105 +9,57 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character
 const getLogoUrl = () => {
   const configuredUrl = String(process.env.EMAIL_LOGO_URL || '').trim();
   if (configuredUrl) return configuredUrl;
-
   const frontendOrigin = String(process.env.CORS_ORIGIN || '').split(',')[0].trim().replace(/\/$/, '');
-  return /^https?:\/\//i.test(frontendOrigin)
-    ? `${frontendOrigin}/estel-isotipo-corporativo.png`
-    : '';
+  return /^https?:\/\//i.test(frontendOrigin) ? `${frontendOrigin}/estel-isotipo-corporativo.png` : '';
 };
 
-const buildDeliveryNotificationHtml = (delivery) => {
-  const deliveredAt = new Intl.DateTimeFormat('es-ES', {
-    timeZone: DELIVERY_TIMEZONE, dateStyle: 'short', timeStyle: 'medium',
-  }).format(delivery.fechaEntrega);
+const orderSummary = (delivery) => {
+  const orders = [...new Set((delivery.stockAllocations || []).map((item) => item.numeroPedido).filter(Boolean))];
+  return orders.length ? orders.join(', ') : '-';
+};
 
-  const allocations = Array.isArray(delivery.stockAllocations) ? delivery.stockAllocations : [];
-  const primaryOrder = allocations[0]?.numeroPedido || 'No disponible';
-  const additionalOrders = Math.max(allocations.length - 1, 0);
-  const orderSummary = additionalOrders > 0
-    ? `${primaryOrder} (+${additionalOrders} pedido${additionalOrders === 1 ? '' : 's'} más)`
-    : primaryOrder;
-  const orderCard = `<tr><td style="padding:0 0 10px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f7f8;border:1px solid #dce5e8;border-radius:8px;">
-      <tr><td style="padding:14px 16px;">
-        <div style="font-size:12px;line-height:17px;color:#64767c;">Nº Pedido</div>
-        <div style="margin-top:4px;font-size:16px;line-height:22px;font-weight:700;color:#043c4b;">${escapeHtml(orderSummary)}</div>
-      </td></tr>
-    </table>
-  </td></tr>`;
-  const consumptionDetail = allocations.length > 1
-    ? `<tr><td style="padding:0 0 18px;">
-        <div style="padding:4px 2px 8px;font-size:13px;line-height:18px;font-weight:700;color:#043c4b;">Detalle de consumo</div>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:3px solid #0b596b;background-color:#f8fafb;">
-          ${allocations.map((allocation) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #e0e8ea;font-size:14px;line-height:20px;color:#40555c;">
-            <strong>${escapeHtml(allocation.numeroPedido)}</strong> &rarr; ${escapeHtml(allocation.cantidadConsumida)} ${allocation.cantidadConsumida === 1 ? 'unidad' : 'unidades'}
-          </td></tr>`).join('')}
-        </table>
-      </td></tr>`
-    : '';
-  const cards = [
-    ['Material', delivery.material],
-    ['Modelo', delivery.modelo],
-    ['Cantidad', delivery.cantidad],
-    ['Receptor', delivery.receptor],
-    ['Departamento', delivery.departamento],
-    ['Fecha y hora de registro', deliveredAt],
-    ['Registrado por', delivery.entregadoPor],
-  ].map(([label, value]) => `<tr><td style="padding:0 0 10px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f7f8;border:1px solid #dce5e8;border-radius:8px;">
-      <tr><td style="padding:14px 16px;">
-        <div style="font-size:12px;line-height:17px;color:#64767c;">${escapeHtml(label)}</div>
-        <div style="margin-top:4px;font-size:16px;line-height:22px;font-weight:700;color:#043c4b;">${escapeHtml(value)}</div>
-      </td></tr>
-    </table>
-  </td></tr>`).join('');
+const buildRows = (operation) => {
+  const newDeliveries = [];
+  const transfers = [];
+  for (const delivery of operation.deliveries || []) {
+    const sources = delivery.transferSources || [];
+    const transferred = sources.reduce((total, source) => total + Number(source.cantidad || 0), 0);
+    const common = { material: delivery.material, modelo: delivery.modelo, pedido: orderSummary(delivery) };
+    if (delivery.cantidad > transferred) newDeliveries.push({ ...common, cantidad: delivery.cantidad - transferred });
+    sources.forEach((source) => transfers.push({ ...common, pedido: source.numeroPedido || '-', cantidad: source.cantidad,
+      receptorAnterior: source.previousPersonName, nuevoReceptor: operation.receptor,
+      numeroSerie: source.numeroSerie || delivery.numeroSerie || null }));
+  }
+  return { newDeliveries, transfers };
+};
 
+const table = (title, headers, rows) => `<div style="margin-top:24px;font-size:18px;line-height:24px;font-weight:700;color:#043c4b;">${escapeHtml(title)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;border:1px solid #dce5e8;border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;">
+    <tr>${headers.map((header) => `<th align="left" style="padding:10px;background:#f4f7f8;border-bottom:1px solid #dce5e8;font-size:12px;color:#52676e;">${escapeHtml(header.label)}</th>`).join('')}</tr>
+    ${rows.map((row) => `<tr>${headers.map((header) => `<td style="padding:10px;border-bottom:1px solid #e7edef;font-size:13px;line-height:19px;color:#30464d;">${escapeHtml(row[header.key] ?? '-')}</td>`).join('')}</tr>`).join('')}
+  </table>`;
+
+const buildDeliveryNotificationHtml = (operation) => {
+  const deliveredAt = new Intl.DateTimeFormat('es-ES', { timeZone: DELIVERY_TIMEZONE, dateStyle: 'short', timeStyle: 'medium' }).format(operation.fechaEntrega);
+  const { newDeliveries, transfers } = buildRows(operation);
+  const standardHeaders = [{ key: 'material', label: 'Material' }, { key: 'modelo', label: 'Modelo' },
+    { key: 'cantidad', label: 'Cantidad' }, { key: 'pedido', label: 'Pedido de compra' }];
+  const transferHeaders = [...standardHeaders, { key: 'receptorAnterior', label: 'Receptor anterior' }, { key: 'nuevoReceptor', label: 'Nuevo receptor' }];
   const logoUrl = getLogoUrl();
-  const logo = logoUrl
-    ? `<img src="${escapeHtml(logoUrl)}" width="46" height="46" alt="Gestión de Inventario" style="display:block;width:46px;height:46px;border:0;border-radius:9px;">`
-    : '<div style="width:46px;height:46px;line-height:46px;text-align:center;background:#ffffff;color:#043c4b;border-radius:9px;font-size:24px;font-weight:700;">GI</div>';
-
-  return `<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Nueva entrega registrada</title>
-<style>@media only screen and (max-width:620px){.email-shell{width:100%!important}.content-pad{padding:22px 14px!important}.header-pad{padding:24px 18px!important}}</style>
-</head><body style="margin:0;padding:0;background-color:#edf2f4;font-family:Arial,'Helvetica Neue',sans-serif;color:#24343a;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Se ha registrado una nueva entrega de ${escapeHtml(delivery.material)}.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#edf2f4;">
-<tr><td align="center" style="padding:24px 10px;">
-<!--[if mso]><table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-shell" style="width:100%;max-width:620px;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 18px rgba(16,55,66,.10);overflow:hidden;">
-  <tr><td class="header-pad" style="padding:28px 30px;background-color:#043c4b;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td width="62" valign="middle">${logo}</td>
-      <td valign="middle" style="padding-left:14px;color:#ffffff;">
-        <div style="font-size:13px;line-height:19px;color:#c9dce1;">Gestión de Inventario</div>
-        <div style="margin-top:2px;font-size:24px;line-height:30px;font-weight:700;">Nueva entrega registrada</div>
-      </td>
-    </tr></table>
-  </td></tr>
-  <tr><td class="content-pad" style="padding:30px;">
-    <div style="margin-bottom:20px;font-size:15px;line-height:23px;color:#4f6268;">Se ha guardado correctamente una nueva entrega con los siguientes datos:</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${orderCard}${consumptionDetail}${cards}</table>
-  </td></tr>
-  <tr><td align="center" style="padding:22px 30px;background-color:#f4f7f8;border-top:1px solid #e0e8ea;color:#66787e;font-size:12px;line-height:19px;">
-    <strong style="color:#043c4b;">Gestión de Inventario</strong><br>
-    Correo generado automáticamente. No responder a este mensaje.
-  </td></tr>
-</table>
-<!--[if mso]></td></tr></table><![endif]-->
-</td></tr></table></body></html>`;
+  const logo = logoUrl ? `<img src="${escapeHtml(logoUrl)}" width="46" height="46" alt="Gestión de Inventario" style="display:block;border:0;border-radius:9px;">`
+    : '<div style="width:46px;height:46px;line-height:46px;text-align:center;background:#fff;color:#043c4b;border-radius:9px;font-size:24px;font-weight:700;">GI</div>';
+  const sections = `${newDeliveries.length ? table('Nuevas entregas', standardHeaders, newDeliveries) : ''}${transfers.length ? table('Traspasos', transferHeaders, transfers) : ''}`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resumen de entrega realizada</title></head>
+  <body style="margin:0;padding:0;background:#edf2f4;font-family:Arial,'Helvetica Neue',sans-serif;color:#24343a;"><div style="display:none;max-height:0;overflow:hidden;">Resumen de ${escapeHtml((operation.deliveries || []).length)} materiales entregados.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:24px 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:760px;background:#fff;border-radius:12px;overflow:hidden;">
+    <tr><td style="padding:28px 30px;background:#043c4b;"><table role="presentation"><tr><td>${logo}</td><td style="padding-left:14px;color:#fff;"><div style="font-size:13px;color:#c9dce1;">Gestión de Inventario</div><div style="font-size:24px;font-weight:700;">Resumen de entrega realizada</div></td></tr></table></td></tr>
+    <tr><td style="padding:30px;"><table role="presentation" width="100%"><tr><td style="padding:6px 0;color:#64767c;">Receptor</td><td style="font-weight:700;color:#043c4b;">${escapeHtml(operation.receptor)}</td></tr><tr><td style="padding:6px 0;color:#64767c;">Departamento</td><td style="font-weight:700;color:#043c4b;">${escapeHtml(operation.departamento)}</td></tr><tr><td style="padding:6px 0;color:#64767c;">Fecha</td><td style="font-weight:700;color:#043c4b;">${escapeHtml(deliveredAt)}</td></tr></table>${sections}</td></tr>
+    <tr><td align="center" style="padding:22px;background:#f4f7f8;border-top:1px solid #e0e8ea;color:#66787e;font-size:12px;"><strong style="color:#043c4b;">Gestión de Inventario</strong><br>Correo generado automáticamente. No responder.</td></tr>
+  </table></td></tr></table></body></html>`;
 };
 
-const sendDeliveryNotification = (delivery) => {
-  const html = buildDeliveryNotificationHtml(delivery);
+const sendDeliveryNotification = (operation) => sendGraphMail({ to: DELIVERY_NOTIFICATION_TO,
+  subject: 'Resumen de entrega realizada', html: buildDeliveryNotificationHtml(operation),
+  idempotencyKey: `delivery-operation:${operation.operationId}` });
 
-  return sendGraphMail({
-    to: DELIVERY_NOTIFICATION_TO,
-    subject: 'Nueva entrega registrada',
-    html,
-    idempotencyKey: `delivery:${delivery._id}`,
-  });
-};
-
-module.exports = { DELIVERY_NOTIFICATION_TO, buildDeliveryNotificationHtml, sendDeliveryNotification };
+module.exports = { DELIVERY_NOTIFICATION_TO, buildDeliveryNotificationHtml, buildRows, sendDeliveryNotification };

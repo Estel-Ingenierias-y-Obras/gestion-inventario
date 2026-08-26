@@ -16,8 +16,20 @@ const personMaterialAssignmentSchema = new mongoose.Schema(
     stockAllocations: {
       type: [{
         materialOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'MaterialOrder', required: true },
-        numeroPedido: { type: String, required: true, trim: true, maxlength: 100 },
+        numeroPedido: { type: String, default: null, trim: true, maxlength: 100 },
         cantidadConsumida: { type: Number, required: true, min: 1 },
+      }],
+      default: undefined,
+    },
+    operationId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
+    transferSources: {
+      type: [{
+        assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PersonMaterialAssignment', required: true },
+        previousPersonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', required: true },
+        previousPersonName: { type: String, required: true, trim: true, maxlength: 150 },
+        numeroSerie: { type: String, default: null, trim: true, maxlength: 150 },
+        numeroPedido: { type: String, default: null, trim: true, maxlength: 100 },
+        cantidad: { type: Number, required: true, min: 1 },
       }],
       default: undefined,
     },

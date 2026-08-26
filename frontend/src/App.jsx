@@ -16,6 +16,7 @@ import DepartamentoDetalle from './pages/DepartamentoDetalle';
 import NoAutorizado from './pages/NoAutorizado';
 import RegistroMaterial from './pages/RegistroMaterial';
 import Almacen from './pages/Almacen';
+import AlmacenResumen from './pages/AlmacenResumen';
 import HistorialPedidos from './pages/HistorialPedidos';
 import './App.css';
 
@@ -32,7 +33,8 @@ function App() {
               <Route path="/entregas/nueva" element={<NuevaEntrega />} />
               <Route path="/historial" element={<Historial />} />
               <Route path="/registro-material" element={<RegistroMaterial />} />
-              <Route path="/almacen" element={<Almacen />} />
+              <Route path="/almacen" element={<AlmacenResumen />} />
+              <Route path="/almacen/material/:material" element={<Almacen />} />
               <Route path="/almacen/historial" element={<HistorialPedidos />} />
               <Route path="/perfil" element={<Perfil />} />
               <Route element={<AdminRoute />}>

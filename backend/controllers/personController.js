@@ -3,7 +3,7 @@ const Department = require('../models/Department');
 const Person = require('../models/Person');
 const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
 const auditLogger = require('../utils/auditLogger');
-const { returnStockToOriginalOrders } = require('../services/stockService');
+const { returnManualAssignmentToStock, returnStockToOriginalOrders } = require('../services/stockService');
 
 const clean = (value) => String(value ?? '').trim();
 const isLaptop = (material) => clean(material).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -189,6 +189,13 @@ const removeAssignment = async (req, res, next) => {
           allocations,
           material: assignment.material,
           modelo: assignment.modelo,
+          assignment,
+          session,
+        });
+      } else {
+        stockMovements = await returnManualAssignmentToStock({
+          assignment,
+          createdBy: req.user?.email || assignment.assignedBy,
           session,
         });
       }
@@ -202,6 +209,8 @@ const removeAssignment = async (req, res, next) => {
       details: auditDetails({ person, assignment, extra: {
         assignmentId: String(assignment._id),
         cantidad: assignment.cantidad,
+        fecha: assignment.removedAt,
+        origen: assignment.origen,
         stockDevuelto: stockMovements,
       } }), req });
     return res.json({ success: true, data: { stockReturned: stockMovements } });

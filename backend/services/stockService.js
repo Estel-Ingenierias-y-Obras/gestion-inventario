@@ -25,6 +25,23 @@ const consumeStockFIFO = async ({ material, modelo, cantidad, session, consumedA
   for (const order of orders) {
     if (remaining === 0) break;
     const consumed = Math.min(order.cantidadDisponible, remaining);
+    let transferRemaining = consumed;
+    const transferSources = [];
+    for (const credit of order.transferCredits || []) {
+      if (transferRemaining === 0) break;
+      const transferred = Math.min(credit.cantidadDisponible, transferRemaining);
+      if (transferred < 1) continue;
+      credit.cantidadDisponible -= transferred;
+      transferRemaining -= transferred;
+      transferSources.push({
+        assignmentId: credit.assignmentId,
+        previousPersonId: credit.previousPersonId,
+        previousPersonName: credit.previousPersonName,
+        numeroSerie: credit.numeroSerie || null,
+        numeroPedido: order.numeroPedido || null,
+        cantidad: transferred,
+      });
+    }
     order.cantidadDisponible -= consumed;
     remaining -= consumed;
     const depleted = order.cantidadDisponible === 0;
@@ -36,7 +53,7 @@ const consumeStockFIFO = async ({ material, modelo, cantidad, session, consumedA
     movements.push({
       materialOrderId: String(order._id), numeroPedido: order.numeroPedido,
       material: order.material, modelo: order.modelo,
-      previousStock: order.cantidadDisponible + consumed,
+      previousStock: order.cantidadDisponible + consumed, transferSources,
       consumed, remainingStock: order.cantidadDisponible, depleted,
     });
   }
@@ -44,7 +61,7 @@ const consumeStockFIFO = async ({ material, modelo, cantidad, session, consumedA
   return movements;
 };
 
-const returnStockToOriginalOrders = async ({ allocations, material, modelo, session }) => {
+const returnStockToOriginalOrders = async ({ allocations, material, modelo, assignment, session }) => {
   const movements = [];
   for (const allocation of allocations) {
     const order = await MaterialOrder.findById(allocation.materialOrderId).session(session);
@@ -65,6 +82,15 @@ const returnStockToOriginalOrders = async ({ allocations, material, modelo, sess
     order.cantidadDisponible += returned;
     order.activo = true;
     order.agotadoAt = null;
+    order.transferCredits = order.transferCredits || [];
+    order.transferCredits.push({
+      assignmentId: assignment._id,
+      previousPersonId: assignment.personId,
+      previousPersonName: assignment.personName,
+      numeroSerie: assignment.numeroSerie || null,
+      cantidadDisponible: returned,
+      returnedAt: assignment.removedAt || new Date(),
+    });
     await order.save({ session });
     movements.push({
       materialOrderId: String(order._id),
@@ -77,4 +103,36 @@ const returnStockToOriginalOrders = async ({ allocations, material, modelo, sess
   return movements;
 };
 
-module.exports = { consumeStockFIFO, returnStockToOriginalOrders };
+const returnManualAssignmentToStock = async ({ assignment, createdBy, session }) => {
+  const [order] = await MaterialOrder.create([{
+    material: assignment.material,
+    modelo: assignment.modelo,
+    numeroPedido: null,
+    numeroSerie: assignment.numeroSerie || null,
+    sourceAssignmentId: assignment._id,
+    transferCredits: [{
+      assignmentId: assignment._id,
+      previousPersonId: assignment.personId,
+      previousPersonName: assignment.personName,
+      numeroSerie: assignment.numeroSerie || null,
+      cantidadDisponible: assignment.cantidad,
+      returnedAt: assignment.removedAt || new Date(),
+    }],
+    cantidadInicial: assignment.cantidad,
+    cantidadDisponible: assignment.cantidad,
+    recibido: true,
+    activo: true,
+    createdBy,
+  }], { session });
+
+  return [{
+    materialOrderId: String(order._id),
+    numeroPedido: null,
+    numeroSerie: order.numeroSerie,
+    returned: order.cantidadDisponible,
+    previousStock: 0,
+    remainingStock: order.cantidadDisponible,
+  }];
+};
+
+module.exports = { consumeStockFIFO, returnStockToOriginalOrders, returnManualAssignmentToStock };

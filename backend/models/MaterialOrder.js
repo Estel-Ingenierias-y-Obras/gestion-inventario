@@ -4,7 +4,20 @@ const materialOrderSchema = new mongoose.Schema(
   {
     material: { type: String, required: true, trim: true, maxlength: 100 },
     modelo: { type: String, required: true, trim: true, maxlength: 100 },
-    numeroPedido: { type: String, required: true, trim: true, maxlength: 100 },
+    numeroPedido: { type: String, default: null, trim: true, maxlength: 100 },
+    numeroSerie: { type: String, default: null, trim: true, maxlength: 150 },
+    sourceAssignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PersonMaterialAssignment', default: null, index: true },
+    transferCredits: {
+      type: [{
+        assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'PersonMaterialAssignment', required: true },
+        previousPersonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', required: true },
+        previousPersonName: { type: String, required: true, trim: true, maxlength: 150 },
+        numeroSerie: { type: String, default: null, trim: true, maxlength: 150 },
+        cantidadDisponible: { type: Number, required: true, min: 0 },
+        returnedAt: { type: Date, required: true },
+      }],
+      default: undefined,
+    },
     cantidadInicial: { type: Number, required: true, min: 1 },
     cantidadDisponible: { type: Number, required: true, min: 0 },
     // Campos legacy conservados para no eliminar información de pedidos existentes.
