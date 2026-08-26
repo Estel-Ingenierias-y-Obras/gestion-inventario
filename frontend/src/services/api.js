@@ -44,6 +44,9 @@ export const addEmailSchedule = (payload) => api.post('/api/email-schedules', pa
 export const updateEmailSchedule = (id, payload) => api.put(`/api/email-schedules/${id}`, payload);
 export const deleteEmailSchedule = (id) => api.delete(`/api/email-schedules/${id}`);
 export const sendEmailSchedule = (id) => api.post(`/api/email-schedules/${id}/send?force=true`);
+export const getDeliveryNotificationRecipients = () => api.get('/api/delivery-notification-recipients');
+export const addDeliveryNotificationRecipient = (email) => api.post('/api/delivery-notification-recipients', { email });
+export const deleteDeliveryNotificationRecipient = (id) => api.delete(`/api/delivery-notification-recipients/${id}`);
 export const getMaterialOrders = () => api.get('/api/material-orders');
 export const getStockCatalog = () => api.get('/api/material-orders/catalog');
 export const getMaterialOrderHistory = () => api.get('/api/material-orders/history');

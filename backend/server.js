@@ -7,6 +7,7 @@ const connectDB = require('./config/db');
 const entregaRoutes = require('./routes/entregaRoutes');
 const whitelistRoutes = require('./routes/whitelistRoutes');
 const emailScheduleRoutes = require('./routes/emailScheduleRoutes');
+const deliveryNotificationRecipientRoutes = require('./routes/deliveryNotificationRecipientRoutes');
 const materialOrderRoutes = require('./routes/materialOrderRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const personRoutes = require('./routes/personRoutes');
@@ -15,6 +16,7 @@ const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimiters');
 const migrateLegacyMaterialOrders = require('./services/materialOrderMigration');
+const migrateDeliveryNotificationRecipient = require('./services/deliveryNotificationRecipientMigration');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,6 +47,7 @@ app.use('/api', apiLimiter);
 app.use('/api/entregas', entregaRoutes);
 app.use('/api/whitelist', whitelistRoutes);
 app.use('/api/email-schedules', emailScheduleRoutes);
+app.use('/api/delivery-notification-recipients', deliveryNotificationRecipientRoutes);
 app.use('/api/material-orders', materialOrderRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api', personRoutes);
@@ -61,6 +64,7 @@ app.use(errorHandler);
 const startServer = async () => {
   await connectDB();
   await migrateLegacyMaterialOrders();
+  await migrateDeliveryNotificationRecipient();
 
   const adminEmail = getAdminEmail();
   if (!adminEmail) {

@@ -4,7 +4,8 @@ import LoadingState from '../components/LoadingState';
 import Toast from '../components/Toast';
 import BackToConfiguration from '../components/BackToConfiguration';
 import {
-  addEmailSchedule, deleteEmailSchedule, getEmailSchedules, sendEmailSchedule, updateEmailSchedule,
+  addDeliveryNotificationRecipient, addEmailSchedule, deleteDeliveryNotificationRecipient,
+  deleteEmailSchedule, getDeliveryNotificationRecipients, getEmailSchedules, sendEmailSchedule, updateEmailSchedule,
 } from '../services/api';
 
 const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -32,12 +33,18 @@ const statusLabels = {
 
 function CorreosConfiguracion() {
   const [schedules, setSchedules] = useState([]);
+  const [recipients, setRecipients] = useState([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [modalMode, setModalMode] = useState(null);
   const [editingTarget, setEditingTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [recipientModal, setRecipientModal] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientError, setRecipientError] = useState('');
+  const [recipientDeleteTarget, setRecipientDeleteTarget] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState(null);
@@ -50,6 +57,33 @@ function CorreosConfiguracion() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { loadSchedules(); }, [loadSchedules]);
+
+  const loadRecipients = useCallback(async () => {
+    setRecipientsLoading(true);
+    try { const response = await getDeliveryNotificationRecipients(); setRecipients(response.data?.data || []); }
+    catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudieron cargar los destinatarios de nuevas entregas.' }); }
+    finally { setRecipientsLoading(false); }
+  }, []);
+  useEffect(() => { loadRecipients(); }, [loadRecipients]);
+
+  const saveRecipient = async (event) => {
+    event.preventDefault();
+    const email = recipientEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setRecipientError('Introduce un correo electrónico válido.'); return; }
+    if (recipients.some((recipient) => recipient.email.toLocaleLowerCase('es') === email.toLocaleLowerCase('es'))) { setRecipientError('Este destinatario ya está configurado.'); return; }
+    setSaving(true);
+    try { await addDeliveryNotificationRecipient(email); setRecipientModal(false); setRecipientEmail(''); await loadRecipients(); setToast({ type: 'success', message: 'Destinatario añadido correctamente.' }); }
+    catch (error) { setRecipientError(error?.response?.data?.message || 'No se pudo añadir el destinatario.'); }
+    finally { setSaving(false); }
+  };
+
+  const removeRecipient = async () => {
+    if (!recipientDeleteTarget) return;
+    setSaving(true);
+    try { await deleteDeliveryNotificationRecipient(recipientDeleteTarget._id); setRecipientDeleteTarget(null); await loadRecipients(); setToast({ type: 'success', message: 'Destinatario eliminado correctamente.' }); }
+    catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo eliminar el destinatario.' }); }
+    finally { setSaving(false); }
+  };
 
   const openAdd = () => { setEditingTarget(null); setForm(emptyForm); setErrors({}); setModalMode('add'); };
   const openEdit = (schedule) => { setEditingTarget(schedule); setForm(scheduleToForm(schedule)); setErrors({}); setModalMode('edit'); };
@@ -96,10 +130,14 @@ function CorreosConfiguracion() {
   const isEditing = modalMode === 'edit';
 
   return (
-    <PageShell title="Correos" subtitle="Programación automática de informes de entregas" actions={<button className="button button--primary" type="button" onClick={openAdd}>+ Añadir programación</button>}>
+    <PageShell title="Correos" subtitle="Destinatarios de nuevas entregas y programaciones periódicas">
       <BackToConfiguration />
+      <section className="panel email-settings-section">
+        <div className="panel__header panel__header--compact"><div><h2>Correos de nuevas entregas</h2><p>Gestiona quién recibe las notificaciones al registrar una entrega.</p></div><button className="button button--primary" type="button" onClick={() => { setRecipientEmail(''); setRecipientError(''); setRecipientModal(true); }}>+ Añadir destinatario</button></div>
+        {recipientsLoading ? <div className="panel__body"><LoadingState rows={3} /></div> : recipients.length === 0 ? <div className="panel__body empty-state"><span className="empty-state__icon">@</span><strong>No hay destinatarios</strong><p>Las nuevas entregas se guardarán, pero no se podrá enviar su notificación.</p></div> : <div className="table-scroll"><table className="data-table delivery-recipient-table"><thead><tr><th>Destinatarios actuales</th><th>Fecha de alta</th><th className="actions-column">Acciones</th></tr></thead><tbody>{recipients.map((recipient) => <tr key={recipient._id}><td><strong>{recipient.email}</strong></td><td>{formatScheduleDate(recipient.createdAt)}</td><td className="actions-column"><button className="icon-button icon-button--delete" type="button" onClick={() => setRecipientDeleteTarget(recipient)} aria-label={`Eliminar destinatario ${recipient.email}`} title="Eliminar">🗑</button></td></tr>)}</tbody></table></div>}
+      </section>
       <section className="panel">
-        <div className="panel__header panel__header--compact"><div><h2>Programaciones</h2><p>{schedules.length} envíos configurados</p></div></div>
+        <div className="panel__header panel__header--compact"><div><h2>Correos periódicos</h2><p>{schedules.length} programaciones existentes</p></div><button className="button button--primary" type="button" onClick={openAdd}>+ Añadir programación</button></div>
         {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : schedules.length === 0 ? <div className="panel__body empty-state"><span className="empty-state__icon">@</span><strong>No hay programaciones</strong><p>Añade una para comenzar a enviar informes.</p></div> : (
           <div className="table-scroll"><table className="data-table email-table"><thead><tr><th>Destinatario</th><th>Periodo del informe</th><th>Día</th><th>Hora</th><th>Estado</th><th>Próxima ejecución</th><th>Último envío</th><th className="actions-column">Acciones</th></tr></thead><tbody>{schedules.map((schedule) => (
             <tr key={schedule._id}><td><strong>{schedule.email}</strong></td><td>{schedule.frequency === 'weekly' ? 'Semanal' : 'Mensual'}</td><td>{dayLabel(schedule)}</td><td>{schedule.hour}</td><td><span className={`schedule-status schedule-status--${schedule.operationalStatus}`}>{scheduleStatus(schedule).icon} {scheduleStatus(schedule).label}</span></td><td>{formatScheduleDate(schedule.nextExecution)}</td><td>{formatScheduleDate(schedule.lastSentAt, 'Nunca')}</td><td className="actions-column"><div className="table-actions">
@@ -110,6 +148,10 @@ function CorreosConfiguracion() {
           ))}</tbody></table></div>
         )}
       </section>
+
+      {recipientModal ? <div className="modal-backdrop" role="presentation"><form className="dialog-card" onSubmit={saveRecipient} role="dialog" aria-modal="true" aria-labelledby="recipient-form-title"><h2 id="recipient-form-title">Añadir destinatario</h2><p>Recibirá los resúmenes de todas las nuevas entregas.</p><label className="field"><span>Correo electrónico</span><input autoFocus type="email" value={recipientEmail} onChange={(event) => { setRecipientEmail(event.target.value); setRecipientError(''); }} className={recipientError ? 'field__input--error' : ''} maxLength={254} />{recipientError ? <small>{recipientError}</small> : null}</label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setRecipientModal(false)} disabled={saving}>Cancelar</button><button className="button button--primary" disabled={saving}>{saving ? 'Guardando…' : 'Añadir'}</button></div></form></div> : null}
+
+      {recipientDeleteTarget ? <div className="modal-backdrop" role="presentation"><section className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="delete-recipient-title"><div className="confirm-modal__icon">!</div><h2 id="delete-recipient-title">Eliminar destinatario</h2><p>Dejará de recibir las notificaciones de nuevas entregas.</p><div className="confirm-modal__summary"><strong>{recipientDeleteTarget.email}</strong></div><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setRecipientDeleteTarget(null)} disabled={saving}>Cancelar</button><button className="button button--danger" type="button" onClick={removeRecipient} disabled={saving}>{saving ? 'Eliminando…' : 'Eliminar'}</button></div></section></div> : null}
 
       {modalMode ? <div className="modal-backdrop" role="presentation"><form className="dialog-card" onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-labelledby="schedule-form-title">
         <h2 id="schedule-form-title">{isEditing ? 'Editar programación' : 'Añadir programación'}</h2><p>{isEditing ? 'Actualiza el destinatario y la periodicidad del informe.' : 'Configura el destinatario y la periodicidad del informe.'}</p>

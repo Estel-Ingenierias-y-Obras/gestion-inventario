@@ -1,6 +1,6 @@
 const { sendGraphMail } = require('./graphMailService');
+const DeliveryNotificationRecipient = require('../models/DeliveryNotificationRecipient');
 
-const DELIVERY_NOTIFICATION_TO = process.env.DELIVERY_NOTIFICATION_EMAIL || 'javier.costa@esteling.com';
 const DELIVERY_TIMEZONE = process.env.REPORT_TIMEZONE || 'Europe/Madrid';
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
@@ -58,8 +58,20 @@ const buildDeliveryNotificationHtml = (operation) => {
   </table></td></tr></table></body></html>`;
 };
 
-const sendDeliveryNotification = (operation) => sendGraphMail({ to: DELIVERY_NOTIFICATION_TO,
-  subject: 'Resumen de entrega realizada', html: buildDeliveryNotificationHtml(operation),
-  idempotencyKey: `delivery-operation:${operation.operationId}` });
+const sendDeliveryNotification = async (operation) => {
+  const recipients = await DeliveryNotificationRecipient.find().sort({ email: 1 }).select('email').lean();
+  if (recipients.length === 0) {
+    const error = new Error('No hay destinatarios configurados para las notificaciones de nuevas entregas.');
+    error.code = 'DELIVERY_NOTIFICATION_RECIPIENTS_EMPTY';
+    throw error;
+  }
+  const html = buildDeliveryNotificationHtml(operation);
+  return Promise.all(recipients.map((recipient) => sendGraphMail({
+    to: recipient.email,
+    subject: 'Resumen de entrega realizada',
+    html,
+    idempotencyKey: `delivery-operation:${operation.operationId}:recipient:${recipient._id}`,
+  })));
+};
 
-module.exports = { DELIVERY_NOTIFICATION_TO, buildDeliveryNotificationHtml, buildRows, sendDeliveryNotification };
+module.exports = { buildDeliveryNotificationHtml, buildRows, sendDeliveryNotification };
