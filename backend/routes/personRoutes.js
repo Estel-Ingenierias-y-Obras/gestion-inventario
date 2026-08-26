@@ -17,6 +17,7 @@ router.delete('/people/:personId', validators.personIdValidator, validateRequest
 router.get('/people/:personId/materials', validators.personIdValidator, validateRequest, controller.listAssignments);
 router.post('/people/:personId/materials', validators.createAssignmentValidator, validateRequest, controller.createAssignment);
 router.patch('/people/:personId/materials/:assignmentId/serial', validators.updateSerialValidator, validateRequest, controller.updateAssignmentSerial);
+router.delete('/people/:personId/materials/:assignmentId/undo', validators.assignmentIdValidator, validateRequest, controller.undoPersonAssignment);
 router.delete('/people/:personId/materials/:assignmentId', validators.assignmentIdValidator, validateRequest, controller.removeAssignment);
 
 module.exports = router;

@@ -69,5 +69,6 @@ export const updatePersonMaterialSerial = (personId, assignmentId, numeroSerie) 
   api.patch(`/api/people/${personId}/materials/${assignmentId}/serial`, { numeroSerie })
 );
 export const removePersonMaterial = (personId, assignmentId) => api.delete(`/api/people/${personId}/materials/${assignmentId}`);
+export const undoPersonMaterialAssignment = (personId, assignmentId) => api.delete(`/api/people/${personId}/materials/${assignmentId}/undo`);
 
 export default api;

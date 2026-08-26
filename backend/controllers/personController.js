@@ -4,6 +4,7 @@ const Person = require('../models/Person');
 const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
 const auditLogger = require('../utils/auditLogger');
 const { returnManualAssignmentToStock, returnStockToOriginalOrders } = require('../services/stockService');
+const { undoAssignment } = require('../services/assignmentUndoService');
 
 const clean = (value) => String(value ?? '').trim();
 const isLaptop = (material) => clean(material).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -217,7 +218,38 @@ const removeAssignment = async (req, res, next) => {
   } catch (error) { return next(error); } finally { await session.endSession(); }
 };
 
+const undoPersonAssignment = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  try {
+    let assignmentSnapshot;
+    let stockMovements = [];
+    await session.withTransaction(async () => {
+      const assignment = await PersonMaterialAssignment.findOne({
+        _id: req.params.assignmentId, personId: req.params.personId, removed: { $ne: true },
+      }).session(session);
+      if (!assignment) {
+        const error = new Error('Material asignado no encontrado.');
+        error.statusCode = 404;
+        throw error;
+      }
+      assignmentSnapshot = assignment.toObject();
+      stockMovements = await undoAssignment({
+        assignment, createdBy: req.user?.email || assignment.assignedBy, session,
+      });
+    });
+    const person = await Person.findById(assignmentSnapshot.personId).lean();
+    await auditLogger({
+      action: 'MATERIAL_ASSIGNMENT_UNDONE', entity: 'PersonMaterialAssignment', user: req.user,
+      details: auditDetails({ person, assignment: assignmentSnapshot, extra: {
+        assignmentId: String(assignmentSnapshot._id), fecha: new Date(), cantidad: assignmentSnapshot.cantidad,
+        motivo: 'Asignación registrada por error', stockRestaurado: stockMovements,
+      } }), req,
+    });
+    return res.json({ success: true, data: { stockReturned: stockMovements } });
+  } catch (error) { return next(error); } finally { await session.endSession(); }
+};
+
 module.exports = {
   getDepartment, listPeopleCatalog, listPeople, createPerson, updatePerson, deletePerson,
-  listAssignments, createAssignment, updateAssignmentSerial, removeAssignment,
+  listAssignments, createAssignment, updateAssignmentSerial, removeAssignment, undoPersonAssignment,
 };
