@@ -1,6 +1,6 @@
 const { sendGraphMail } = require('./graphMailService');
 
-const DELIVERY_NOTIFICATION_TO = process.env.DELIVERY_NOTIFICATION_EMAIL || 'francisco.hernandez@esteling.com';
+const DELIVERY_NOTIFICATION_TO = process.env.DELIVERY_NOTIFICATION_EMAIL || 'javier.costa@esteling.com';
 const DELIVERY_TIMEZONE = process.env.REPORT_TIMEZONE || 'Europe/Madrid';
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
