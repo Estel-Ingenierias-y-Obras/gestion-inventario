@@ -1,4 +1,3 @@
-const Entrega = require('../models/Entrega');
 const MaterialOrder = require('../models/MaterialOrder');
 
 const invalidTrace = (message, code) => {
@@ -50,8 +49,14 @@ const undoAssignment = async ({ assignment, createdBy, session }) => {
   const stockMovements = assignment.origen === 'almacen'
     ? await undoWarehouseAssignment({ assignment, session })
     : await undoManualAssignment({ assignment, createdBy, session });
-  if (assignment.entregaId) await Entrega.deleteOne({ _id: assignment.entregaId }, { session });
-  await assignment.deleteOne({ session });
+  assignment.undone = true;
+  assignment.undoneAt = new Date();
+  assignment.undoneBy = { email: createdBy };
+  assignment.undoReason = 'Asignación registrada por error';
+  assignment.removed = true;
+  assignment.removedAt = assignment.undoneAt;
+  assignment.removedBy = assignment.undoneBy;
+  await assignment.save({ session });
   return stockMovements;
 };
 

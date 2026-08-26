@@ -232,17 +232,18 @@ const undoPersonAssignment = async (req, res, next) => {
         error.statusCode = 404;
         throw error;
       }
-      assignmentSnapshot = assignment.toObject();
       stockMovements = await undoAssignment({
         assignment, createdBy: req.user?.email || assignment.assignedBy, session,
       });
+      assignmentSnapshot = assignment.toObject();
     });
     const person = await Person.findById(assignmentSnapshot.personId).lean();
     await auditLogger({
       action: 'MATERIAL_ASSIGNMENT_UNDONE', entity: 'PersonMaterialAssignment', user: req.user,
       details: auditDetails({ person, assignment: assignmentSnapshot, extra: {
-        assignmentId: String(assignmentSnapshot._id), fecha: new Date(), cantidad: assignmentSnapshot.cantidad,
-        motivo: 'Asignación registrada por error', stockRestaurado: stockMovements,
+        assignmentId: String(assignmentSnapshot._id), fecha: assignmentSnapshot.undoneAt,
+        cantidad: assignmentSnapshot.cantidad, motivo: assignmentSnapshot.undoReason,
+        estadoTecnico: 'UNDONE', stockRestaurado: stockMovements,
       } }), req,
     });
     return res.json({ success: true, data: { stockReturned: stockMovements } });

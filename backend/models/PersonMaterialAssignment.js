@@ -38,6 +38,10 @@ const personMaterialAssignmentSchema = new mongoose.Schema(
     removed: { type: Boolean, default: false, index: true },
     removedAt: { type: Date, default: null },
     removedBy: { type: Object, default: null },
+    undone: { type: Boolean, default: false, index: true },
+    undoneAt: { type: Date, default: null },
+    undoneBy: { type: Object, default: null },
+    undoReason: { type: String, default: null, trim: true, maxlength: 250 },
   },
   { timestamps: true, collection: 'personMaterialAssignments' }
 );
