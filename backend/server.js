@@ -73,7 +73,7 @@ const startServer = async () => {
 
   await WhitelistUser.updateOne(
     { email: adminEmail },
-    { $setOnInsert: { name: 'Administrador principal', email: adminEmail } },
+    { $set: { name: 'Javier Costa' }, $setOnInsert: { email: adminEmail } },
     { upsert: true }
   );
 
