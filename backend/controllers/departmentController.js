@@ -1,14 +1,44 @@
 const Department = require('../models/Department');
 const Person = require('../models/Person');
+const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
 const auditLogger = require('../utils/auditLogger');
 
 const listDepartments = async (_req, res, next) => {
   try {
-    const departments = await Department.find()
+    const departments = await Department.find({ source: { $in: ['entra', 'virtual'] }, entraVisible: true })
       .collation({ locale: 'es', strength: 2 })
       .sort({ name: 1, _id: 1 })
       .lean();
-    return res.status(200).json({ success: true, data: departments });
+    const departmentIds = departments.map((department) => department._id);
+    const visiblePeople = await Person.find({
+      departmentId: { $in: departmentIds }, source: 'entra', entraVisible: true, deleted: { $ne: true },
+    }).select('_id departmentId').lean();
+    const employeeCountByDepartment = new Map();
+    const departmentByPerson = new Map();
+    visiblePeople.forEach((person) => {
+      const departmentId = String(person.departmentId);
+      departmentByPerson.set(String(person._id), departmentId);
+      employeeCountByDepartment.set(departmentId, (employeeCountByDepartment.get(departmentId) || 0) + 1);
+    });
+    const materialByPerson = visiblePeople.length ? await PersonMaterialAssignment.aggregate([
+      { $match: { personId: { $in: visiblePeople.map((person) => person._id) }, removed: { $ne: true }, undone: { $ne: true } } },
+      { $group: { _id: '$personId', units: { $sum: '$cantidad' } } },
+    ]) : [];
+    const materialCountByDepartment = new Map();
+    materialByPerson.forEach(({ _id, units }) => {
+      const departmentId = departmentByPerson.get(String(_id));
+      if (!departmentId) return;
+      materialCountByDepartment.set(
+        departmentId,
+        (materialCountByDepartment.get(departmentId) || 0) + Number(units || 0)
+      );
+    });
+    const data = departments.map((department) => ({
+      ...department,
+      employeeCount: employeeCountByDepartment.get(String(department._id)) || 0,
+      materialCount: materialCountByDepartment.get(String(department._id)) || 0,
+    }));
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     return next(error);
   }

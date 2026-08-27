@@ -59,6 +59,8 @@ const crearEntrega = async (req, res, next) => {
       _id: personId,
       departmentId,
       deleted: { $ne: true },
+      source: 'entra',
+      entraVisible: true,
     }).lean();
     if (!person) {
       return res.status(400).json({
@@ -67,7 +69,9 @@ const crearEntrega = async (req, res, next) => {
         message: 'La persona seleccionada no existe o no pertenece al departamento indicado.',
       });
     }
-    const department = await Department.findById(person.departmentId).lean();
+    const department = await Department.findOne({
+      _id: person.departmentId, source: { $in: ['entra', 'virtual'] }, entraVisible: true,
+    }).lean();
     if (!department) {
       return res.status(400).json({ success: false, code: 'DEPARTMENT_NOT_AVAILABLE', message: 'El departamento de la persona ya no está disponible.' });
     }

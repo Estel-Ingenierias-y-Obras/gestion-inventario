@@ -6,8 +6,8 @@ import SortableHeader from '../components/SortableHeader';
 import Toast from '../components/Toast';
 import { nextSortConfig, sortRows } from '../utils/tableSort';
 import {
-  assignPersonMaterial, createPerson, deletePerson, getDepartmentPeople, getPersonMaterials,
-  removePersonMaterial, updatePerson, updatePersonMaterialSerial,
+  assignPersonMaterial, getDepartmentPeople, getPersonMaterials,
+  removePersonMaterial, updatePersonMaterialSerial,
   undoPersonMaterialAssignment,
 } from '../services/api';
 
@@ -27,8 +27,6 @@ function DepartamentoDetalle() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ key: 'nombreCompleto', direction: 'asc' });
-  const [personForm, setPersonForm] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
@@ -57,20 +55,6 @@ function DepartamentoDetalle() {
     const filtered = needle ? people.filter((person) => person.nombreCompleto.toLocaleLowerCase('es').includes(needle)) : people;
     return sortRows(filtered, sort, { createdAt: 'date', materialAsignado: 'number' });
   }, [people, search, sort]);
-
-  const savePerson = async (event) => {
-    event.preventDefault();
-    const name = personForm.nombreCompleto.trim();
-    if (name.length < 2) return;
-    setSaving(true);
-    try {
-      if (personForm._id) await updatePerson(personForm._id, { nombreCompleto: name });
-      else await createPerson(id, { nombreCompleto: name });
-      setPersonForm(null); await loadPeople();
-      setToast({ type: 'success', message: personForm._id ? 'Persona actualizada.' : 'Persona creada correctamente.' });
-    } catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo guardar la persona.' }); }
-    finally { setSaving(false); }
-  };
 
   const openMaterials = async (person) => {
     setSelectedPerson(person); setMaterialsLoading(true);
@@ -137,16 +121,12 @@ function DepartamentoDetalle() {
   };
 
   return (
-    <PageShell title={department?.name || 'Departamento'} subtitle="Personas del departamento" actions={<button className="button button--primary" type="button" onClick={() => setPersonForm({ nombreCompleto: '' })}>+ Nueva persona</button>}>
+    <PageShell title={department?.name || 'Departamento'} subtitle="Personas sincronizadas desde Microsoft Entra ID">
       <Link className="back-to-configuration" to="/configuracion/departamentos">← <span>Volver a departamentos</span></Link>
       <section className="panel">
         <div className="panel__header department-people-toolbar"><div><h2>Personas del departamento</h2><p>{people.length} {people.length === 1 ? 'persona' : 'personas'}</p></div><label className="search-box"><span className="search-box__icon">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar persona" /></label></div>
-        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : visiblePeople.length === 0 ? <div className="empty-state"><strong>No hay personas que mostrar.</strong><p>Añade una persona o cambia la búsqueda.</p></div> : <div className="table-scroll"><table className="data-table"><thead><tr><SortableHeader label="Nombre" sortKey="nombreCompleto" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><SortableHeader label="Fecha creación" sortKey="createdAt" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><SortableHeader label="Material asignado" sortKey="materialAsignado" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><th>Acciones</th></tr></thead><tbody>{visiblePeople.map((person) => <tr className="clickable-table-row" key={person._id} tabIndex={0} role="button" aria-label={`Abrir material asignado de ${person.nombreCompleto}`} onClick={() => openMaterials(person)} onKeyDown={(event) => handlePersonRowKeyDown(event, person)}><td><strong>{person.nombreCompleto}</strong></td><td>{date(person.createdAt)}</td><td>{person.materialAsignado}</td><td><div className="row-actions"><button className="icon-button icon-button--edit" type="button" title="Editar" onKeyDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setPersonForm(person); }}>✎</button><button className="icon-button icon-button--delete" type="button" title="Eliminar" onKeyDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setDeleteTarget(person); }}>🗑</button></div></td></tr>)}</tbody></table></div>}
+        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : visiblePeople.length === 0 ? <div className="empty-state"><strong>No hay personas sincronizadas que mostrar.</strong><p>Cambia la búsqueda o ejecuta una nueva sincronización del catálogo.</p></div> : <div className="table-scroll"><table className="data-table"><thead><tr><SortableHeader label="Nombre" sortKey="nombreCompleto" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><th>Correo</th><SortableHeader label="Material asignado" sortKey="materialAsignado" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><th>Origen</th></tr></thead><tbody>{visiblePeople.map((person) => <tr className="clickable-table-row" key={person._id} tabIndex={0} role="button" aria-label={`Abrir material asignado de ${person.nombreCompleto}`} onClick={() => openMaterials(person)} onKeyDown={(event) => handlePersonRowKeyDown(event, person)}><td><strong>{person.nombreCompleto}</strong></td><td>{person.entraMail || '—'}</td><td>{person.materialAsignado}</td><td>Microsoft Entra ID</td></tr>)}</tbody></table></div>}
       </section>
-
-      {personForm ? <div className="modal-backdrop"><form className="dialog-card" onSubmit={savePerson}><h2>{personForm._id ? 'Editar persona' : 'Nueva persona'}</h2><label className="field"><span>Nombre completo</span><input autoFocus required minLength={2} maxLength={150} value={personForm.nombreCompleto} onChange={(event) => setPersonForm({ ...personForm, nombreCompleto: event.target.value })} /></label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setPersonForm(null)} disabled={saving}>Cancelar</button><button className="button button--primary" disabled={saving}>Guardar</button></div></form></div> : null}
-
-      {deleteTarget ? <div className="modal-backdrop"><section className="dialog-card"><h2>Eliminar persona</h2><p>La persona dejará de estar activa, pero conservará su historial individual.</p><strong>{deleteTarget.nombreCompleto}</strong><div className="dialog-card__actions"><button className="button button--secondary" onClick={() => setDeleteTarget(null)}>Cancelar</button><button className="button button--danger" disabled={saving} onClick={async () => { setSaving(true); try { await deletePerson(deleteTarget._id); setDeleteTarget(null); await loadPeople(); } catch (error) { setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo eliminar.' }); } finally { setSaving(false); } }}>Eliminar</button></div></section></div> : null}
 
       {selectedPerson ? <div className="modal-backdrop"><section className="dialog-card person-material-dialog"><div className="material-dialog-heading"><div><h2>Gestión de material asignado</h2><p>{selectedPerson.nombreCompleto}</p></div><button className="button button--primary" type="button" onClick={openAssignment} disabled={saving}>+ Asignar material</button></div>{materialsLoading ? <LoadingState rows={4} /> : <div className="table-scroll"><table className="data-table material-history-table"><thead><tr><th>Material</th><th>Modelo</th><th>Cantidad</th><th>Número serie</th><th>Número pedido</th><th>Fecha asignación</th><th>Acciones</th></tr></thead><tbody>{assignments.map((item) => <tr key={item._id} className={item.removed ? 'assignment-removed' : ''}><td>{item.material}</td><td>{item.modelo}</td><td>{item.cantidad}</td><td>{item.numeroSerie || '-'}</td><td>{item.numeroPedido || '-'}</td><td>{date(item.assignedAt)}</td><td>{!item.removed ? <div className="row-actions"><button className="icon-button icon-button--edit" type="button" title="Editar serie" onClick={() => setSerialEdit({ ...item, numeroSerie: item.numeroSerie || '' })}>✎</button><button className="icon-button icon-button--restore" type="button" title="Desasignar" aria-label={`Desasignar ${item.material} de ${selectedPerson.nombreCompleto}`} onClick={() => setUnassignTarget(item)}>↩</button><button className="icon-button icon-button--delete" type="button" title="Deshacer asignación" aria-label={`Deshacer asignación de ${item.material} a ${selectedPerson.nombreCompleto}`} onClick={() => setUndoTarget(item)}>✕</button></div> : '-'}</td></tr>)}</tbody></table>{assignments.length === 0 ? <div className="empty-state"><p>No hay material asignado.</p></div> : null}</div>}<div className="dialog-card__actions"><button className="button button--secondary" onClick={() => setSelectedPerson(null)}>Cerrar</button></div></section></div> : null}
 

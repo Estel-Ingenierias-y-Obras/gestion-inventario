@@ -11,6 +11,7 @@ const deliveryNotificationRecipientRoutes = require('./routes/deliveryNotificati
 const materialOrderRoutes = require('./routes/materialOrderRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const personRoutes = require('./routes/personRoutes');
+const entraSyncRoutes = require('./routes/entraSyncRoutes');
 const WhitelistUser = require('./models/WhitelistUser');
 const { getAdminEmail } = require('./middleware/whitelist');
 const errorHandler = require('./middleware/errorHandler');
@@ -38,7 +39,7 @@ app.use(cors({
     return callback(error);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Automation-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Automation-Key', 'X-Entra-Simulation-Key'],
   maxAge: 86400,
 }));
 app.use(express.json({ limit: '100kb', strict: true }));
@@ -51,6 +52,7 @@ app.use('/api/delivery-notification-recipients', deliveryNotificationRecipientRo
 app.use('/api/material-orders', materialOrderRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api', personRoutes);
+app.use('/api/entra-sync', entraSyncRoutes);
 
 app.get('/', apiLimiter, (req, res) => {
   res.json({

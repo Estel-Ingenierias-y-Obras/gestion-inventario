@@ -21,7 +21,7 @@ const auditDetails = ({ department, person, assignment, extra = {} }) => ({
 
 const getDepartment = async (req, res, next) => {
   try {
-    const department = await Department.findById(req.params.departmentId).lean();
+    const department = await Department.findOne({ _id: req.params.departmentId, source: { $in: ['entra', 'virtual'] }, entraVisible: true }).lean();
     if (!department) return res.status(404).json({ success: false, message: 'Departamento no encontrado.' });
     return res.json({ success: true, data: department });
   } catch (error) { return next(error); }
@@ -30,7 +30,7 @@ const getDepartment = async (req, res, next) => {
 const listPeopleCatalog = async (_req, res, next) => {
   try {
     const people = await Person.aggregate([
-      { $match: { deleted: { $ne: true } } },
+      { $match: { deleted: { $ne: true }, source: 'entra', entraVisible: true } },
       { $lookup: { from: 'departments', localField: 'departmentId', foreignField: '_id', as: 'department' } },
       { $unwind: '$department' },
       { $project: { _id: 1, nombreCompleto: 1, departmentId: 1, departmentName: '$department.name' } },
@@ -42,10 +42,10 @@ const listPeopleCatalog = async (_req, res, next) => {
 
 const listPeople = async (req, res, next) => {
   try {
-    const department = await Department.findById(req.params.departmentId).lean();
+    const department = await Department.findOne({ _id: req.params.departmentId, source: { $in: ['entra', 'virtual'] }, entraVisible: true }).lean();
     if (!department) return res.status(404).json({ success: false, message: 'Departamento no encontrado.' });
     const people = await Person.aggregate([
-      { $match: { departmentId: department._id, deleted: { $ne: true } } },
+      { $match: { departmentId: department._id, deleted: { $ne: true }, source: 'entra', entraVisible: true } },
       { $lookup: { from: 'personMaterialAssignments', let: { person: '$_id' }, pipeline: [
         { $match: { $expr: { $eq: ['$personId', '$$person'] }, removed: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$cantidad' } } },
@@ -111,7 +111,7 @@ const listAssignments = async (req, res, next) => {
 
 const createAssignment = async (req, res, next) => {
   try {
-    const person = await Person.findOne({ _id: req.params.personId, deleted: { $ne: true } }).lean();
+    const person = await Person.findOne({ _id: req.params.personId, deleted: { $ne: true }, source: 'entra', entraVisible: true }).lean();
     if (!person) return res.status(404).json({ success: false, message: 'Persona no encontrada.' });
     const department = await Department.findById(person.departmentId).lean();
     if (!department) return res.status(409).json({ success: false, message: 'El departamento ya no existe.' });

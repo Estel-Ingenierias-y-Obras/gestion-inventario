@@ -17,7 +17,7 @@ function Configuracion() {
         </Link>
         <Link className="admin-option" to="/configuracion/departamentos">
           <span className="admin-option__icon" aria-hidden="true">D</span>
-          <div><h2>Departamentos</h2><p>Gestiona las opciones disponibles al registrar nuevas entregas.</p></div>
+          <div><h2>Departamentos</h2><p>Consulta los departamentos y personas sincronizados desde Microsoft Entra ID.</p></div>
           <span className="admin-option__arrow" aria-hidden="true">→</span>
         </Link>
       </div>

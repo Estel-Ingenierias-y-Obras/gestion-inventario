@@ -1,22 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackToConfiguration from '../components/BackToConfiguration';
 import LoadingState from '../components/LoadingState';
 import PageShell from '../components/PageShell';
+import SortableHeader from '../components/SortableHeader';
 import Toast from '../components/Toast';
-import { createDepartment, deleteDepartment, getDepartments } from '../services/api';
+import { getDepartments, synchronizeEntraCatalog } from '../services/api';
+import { nextSortConfig, sortRows } from '../utils/tableSort';
+import EntraSimulacion from './EntraSimulacion';
 
 function DepartamentosConfiguracion() {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [nameError, setNameError] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState(null);
-  const closeToast = useCallback(() => setToast(null), []);
+  const [sort, setSort] = useState({ key: 'name', direction: 'asc' });
+
+  const visibleDepartments = useMemo(() => sortRows(departments, sort, {
+    employeeCount: 'number', materialCount: 'number',
+  }), [departments, sort]);
 
   const loadDepartments = useCallback(async () => {
     setLoading(true);
@@ -24,84 +27,38 @@ function DepartamentosConfiguracion() {
       const response = await getDepartments();
       setDepartments(response.data?.data || []);
     } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudieron cargar los departamentos.' });
-    } finally {
-      setLoading(false);
-    }
+      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudieron cargar los departamentos sincronizados.' });
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadDepartments(); }, [loadDepartments]);
 
+  const synchronize = async () => {
+    setSyncing(true);
+    try {
+      const response = await synchronizeEntraCatalog();
+      await loadDepartments();
+      setToast({ type: 'success', message: `Catálogo actualizado: ${response.data?.data?.eligibleUsers || 0} personas elegibles.` });
+    } catch (error) {
+      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo sincronizar el catálogo Entra.' });
+    } finally { setSyncing(false); }
+  };
+
   const openDepartment = (department) => navigate(`/departamentos/${department._id}`);
   const handleRowKeyDown = (event, department) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    openDepartment(department);
-  };
-
-  const closeAdd = () => {
-    if (saving) return;
-    setAddOpen(false);
-    setName('');
-    setNameError('');
-  };
-
-  const handleAdd = async (event) => {
-    event.preventDefault();
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 100) {
-      setNameError('Introduce un nombre de entre 2 y 100 caracteres.');
-      return;
-    }
-    if (departments.some((department) => department.name.localeCompare(trimmedName, 'es', { sensitivity: 'base' }) === 0)) {
-      setNameError('Ya existe un departamento con este nombre.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await createDepartment({ name: trimmedName });
-      setAddOpen(false);
-      setName('');
-      setNameError('');
-      await loadDepartments();
-      setToast({ type: 'success', message: 'Departamento creado correctamente.' });
-    } catch (error) {
-      const message = error?.response?.data?.message || 'No se pudo crear el departamento.';
-      if (error?.response?.status === 409) setNameError(message);
-      setToast({ type: 'error', message });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setSaving(true);
-    try {
-      await deleteDepartment(deleteTarget._id);
-      setDeleteTarget(null);
-      await loadDepartments();
-      setToast({ type: 'success', message: 'Departamento eliminado correctamente.' });
-    } catch (error) {
-      setToast({ type: 'error', message: error?.response?.data?.message || 'No se pudo eliminar el departamento.' });
-    } finally {
-      setSaving(false);
-    }
+    event.preventDefault(); openDepartment(department);
   };
 
   return (
-    <PageShell title="Departamentos" subtitle="Gestiona las opciones disponibles al registrar nuevas entregas" actions={<button className="button button--primary" type="button" onClick={() => setAddOpen(true)}>+ Nuevo departamento</button>}>
+    <PageShell title="Departamentos" subtitle="Departamentos y personas sincronizados desde Microsoft Entra ID" actions={<button className="button button--primary" type="button" onClick={synchronize} disabled={syncing}>{syncing ? 'Sincronizando…' : 'Sincronizar catálogo'}</button>}>
       <BackToConfiguration />
       <section className="panel">
-        <div className="panel__header panel__header--compact"><div><h2>Departamentos registrados</h2><p>{departments.length} {departments.length === 1 ? 'departamento' : 'departamentos'}</p></div></div>
-        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : departments.length === 0 ? <div className="empty-state"><strong>No hay departamentos registrados.</strong><p>Añade un departamento para utilizarlo en nuevas entregas.</p></div> : <div className="table-scroll"><table className="data-table department-table"><thead><tr><th>Departamento</th><th>Fecha creación</th><th className="actions-column">Acciones</th></tr></thead><tbody>{departments.map((department) => <tr className="clickable-table-row" key={department._id} tabIndex={0} role="link" aria-label={`Abrir departamento ${department.name}`} onClick={() => openDepartment(department)} onKeyDown={(event) => handleRowKeyDown(event, department)}><td><strong>{department.name}</strong></td><td>{new Date(department.createdAt).toLocaleDateString('es-ES')}</td><td className="actions-column"><button className="icon-button icon-button--delete" type="button" onKeyDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setDeleteTarget(department); }} aria-label={`Eliminar departamento ${department.name}`} title="Eliminar">🗑</button></td></tr>)}</tbody></table></div>}
+        <div className="panel__header panel__header--compact"><div><h2>Departamentos sincronizados</h2><p>{departments.length} {departments.length === 1 ? 'departamento visible' : 'departamentos visibles'}</p></div><span className="status-badge"><span />Fuente: Entra ID</span></div>
+        {loading ? <div className="panel__body"><LoadingState rows={5} /></div> : departments.length === 0 ? <div className="empty-state"><strong>No hay departamentos sincronizados.</strong><p>Ejecuta la sincronización del catálogo para importar los usuarios elegibles.</p></div> : <div className="table-scroll"><table className="data-table department-table"><thead><tr><SortableHeader label="Departamento" sortKey="name" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><SortableHeader label="Nº Empleados" sortKey="employeeCount" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /><SortableHeader label="Nº Material" sortKey="materialCount" sortConfig={sort} onSort={(key) => setSort(nextSortConfig(sort, key))} /></tr></thead><tbody>{visibleDepartments.map((department) => <tr className="clickable-table-row" key={department._id} tabIndex={0} role="link" onClick={() => openDepartment(department)} onKeyDown={(event) => handleRowKeyDown(event, department)}><td><strong>{department.name}</strong></td><td>{department.employeeCount}</td><td>{department.materialCount}</td></tr>)}</tbody></table></div>}
       </section>
-
-      {addOpen ? <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAdd(); }}><form className="dialog-card" onSubmit={handleAdd} role="dialog" aria-modal="true" aria-labelledby="add-department-title" noValidate><h2 id="add-department-title">Nuevo departamento</h2><p>Añade una opción para las futuras entregas.</p><label className="field"><span>Nombre del departamento</span><input autoFocus value={name} onChange={(event) => { setName(event.target.value); setNameError(''); }} className={nameError ? 'field__input--error' : ''} maxLength={100} />{nameError ? <small>{nameError}</small> : null}</label><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={closeAdd} disabled={saving}>Cancelar</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></div></form></div> : null}
-
-      {deleteTarget ? <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setDeleteTarget(null); }}><section className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="delete-department-title"><div className="confirm-modal__icon" aria-hidden="true">!</div><h2 id="delete-department-title">Eliminar departamento</h2><p>¿Deseas eliminar este departamento?</p><div className="confirm-modal__summary"><strong>{deleteTarget.name}</strong><span>Las entregas históricas conservarán este nombre.</span></div><div className="dialog-card__actions"><button className="button button--secondary" type="button" onClick={() => setDeleteTarget(null)} disabled={saving}>Cancelar</button><button className="button button--danger" type="button" onClick={handleDelete} disabled={saving}>{saving ? 'Eliminando…' : 'Eliminar'}</button></div></section></div> : null}
-      <Toast message={toast?.message} type={toast?.type} onClose={closeToast} />
+      <div className="department-entra-observation"><EntraSimulacion /></div>
+      <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </PageShell>
   );
 }
