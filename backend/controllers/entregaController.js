@@ -61,6 +61,7 @@ const crearEntrega = async (req, res, next) => {
       deleted: { $ne: true },
       source: 'entra',
       entraVisible: true,
+      entraDeactivationStatus: { $ne: 'PENDING' },
     }).lean();
     if (!person) {
       return res.status(400).json({

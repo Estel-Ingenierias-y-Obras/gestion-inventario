@@ -135,4 +135,32 @@ const returnManualAssignmentToStock = async ({ assignment, createdBy, session })
   }];
 };
 
-module.exports = { consumeStockFIFO, returnStockToOriginalOrders, returnManualAssignmentToStock };
+const returnAssignmentToStock = async ({ assignment, user, session }) => {
+  assignment.removedAt = new Date();
+  let stockMovements;
+  if (assignment.origen === 'almacen') {
+    const allocations = assignment.stockAllocations || [];
+    const allocatedQuantity = allocations.reduce((total, item) => total + item.cantidadConsumida, 0);
+    if (allocations.length === 0 || allocatedQuantity !== assignment.cantidad) {
+      const error = new Error('La asignación no conserva una trazabilidad de stock válida.');
+      error.statusCode = 409;
+      error.code = 'INVALID_ASSIGNMENT_TRACE';
+      throw error;
+    }
+    stockMovements = await returnStockToOriginalOrders({
+      allocations, material: assignment.material, modelo: assignment.modelo, assignment, session,
+    });
+  } else {
+    stockMovements = await returnManualAssignmentToStock({
+      assignment, createdBy: user?.email || assignment.assignedBy, session,
+    });
+  }
+  assignment.removed = true;
+  assignment.removedBy = user;
+  await assignment.save({ session });
+  return stockMovements;
+};
+
+module.exports = {
+  consumeStockFIFO, returnStockToOriginalOrders, returnManualAssignmentToStock, returnAssignmentToStock,
+};

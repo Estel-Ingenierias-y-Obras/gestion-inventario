@@ -10,6 +10,8 @@ const router = express.Router();
 router.use(authenticate, requireWhitelist);
 router.get('/people/catalog', controller.listPeopleCatalog);
 router.use(requireAdmin);
+router.get('/people/deactivation-pending', controller.listPendingDeactivations);
+router.post('/people/:personId/confirm-deactivation', validators.personIdValidator, validateRequest, controller.confirmDeactivation);
 router.get('/departments/:departmentId', validators.departmentIdValidator, validateRequest, controller.getDepartment);
 router.get('/departments/:departmentId/people', validators.departmentIdValidator, validateRequest, controller.listPeople);
 router.post('/departments/:departmentId/people', validators.createPersonValidator, validateRequest, manualDirectoryDisabled);

@@ -38,7 +38,6 @@ function NuevaEntrega() {
     return () => { active = false; };
   }, []);
 
-  const departmentPeople = useMemo(() => people.filter((person) => String(person.departmentId) === departmentId), [departmentId, people]);
   const materials = useMemo(() => [...new Set(catalog.map((item) => item.material))], [catalog]);
   const models = useMemo(() => catalog.filter((item) => item.material === line.material), [catalog, line.material]);
   const stock = models.find((item) => item.modelo === line.modelo)?.cantidadDisponible || 0;
@@ -46,6 +45,7 @@ function NuevaEntrega() {
     .reduce((total, item) => total + item.cantidad, 0);
   const available = Math.max(stock - reserved, 0);
   const selectedPerson = people.find((person) => person._id === personId);
+  const selectedDepartment = departments.find((department) => department._id === departmentId);
 
   const updateLine = (field, value) => {
     setLine((current) => ({ ...current, [field]: value }));
@@ -85,11 +85,11 @@ function NuevaEntrega() {
   return (
     <PageShell title="Nueva entrega" subtitle="Asigna varios materiales a una persona en una única operación">
       <form className="delivery-flow" onSubmit={save} noValidate>
-        <section className="form-card delivery-step"><div className="form-card__header"><div><h2>1. Departamento</h2><p>Selecciona el departamento receptor.</p></div></div>
-          <label className="field"><span>Departamento</span><select value={departmentId} disabled={peopleLoading} onChange={(event) => { setDepartmentId(event.target.value); setPersonId(''); }}><option value="">{peopleLoading ? 'Cargando departamentos…' : 'Selecciona un departamento'}</option>{departments.map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}</select></label>
+        <section className="form-card delivery-step"><div className="form-card__header"><div><h2>1. Persona</h2><p>Selecciona la persona que recibirá el material.</p></div></div>
+          <label className="field"><span>Persona</span><select value={personId} disabled={peopleLoading} onChange={(event) => { const nextPersonId = event.target.value; const person = people.find((item) => item._id === nextPersonId); setPersonId(nextPersonId); setDepartmentId(person ? String(person.departmentId) : ''); }}><option value="">{peopleLoading ? 'Cargando personas…' : 'Selecciona una persona'}</option>{people.map((person) => <option key={person._id} value={person._id}>{person.nombreCompleto}</option>)}</select></label>
         </section>
-        <section className={`form-card delivery-step${!departmentId ? ' delivery-step--disabled' : ''}`}><div className="form-card__header"><div><h2>2. Persona</h2><p>Solo se muestran personas del departamento seleccionado.</p></div></div>
-          <label className="field"><span>Persona</span><select value={personId} disabled={!departmentId} onChange={(event) => setPersonId(event.target.value)}><option value="">Selecciona una persona</option>{departmentPeople.map((person) => <option key={person._id} value={person._id}>{person.nombreCompleto}</option>)}</select></label>
+        <section className={`form-card delivery-step${!personId ? ' delivery-step--disabled' : ''}`}><div className="form-card__header"><div><h2>2. Departamento</h2><p>Departamento asociado automáticamente a la persona.</p></div></div>
+          <label className="field"><span>Departamento</span><input value={selectedDepartment?.name || selectedPerson?.departmentName || ''} placeholder="Selecciona primero una persona" readOnly /></label>
         </section>
         <section className={`form-card delivery-step${!personId ? ' delivery-step--disabled' : ''}`}><div className="form-card__header"><div><h2>3. Materiales</h2><p>Añade todas las líneas que formarán parte de la entrega a {selectedPerson?.nombreCompleto || 'la persona seleccionada'}.</p></div></div>
           <div className="form-grid delivery-line-editor">

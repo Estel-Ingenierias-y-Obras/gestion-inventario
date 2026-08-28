@@ -60,6 +60,8 @@ export const deleteDepartment = (id) => api.delete(`/api/departments/${id}`);
 export const getDepartment = (id) => api.get(`/api/departments/${id}`);
 export const getDepartmentPeople = (departmentId) => api.get(`/api/departments/${departmentId}/people`);
 export const getPeopleCatalog = () => api.get('/api/people/catalog');
+export const getPendingEntraDeactivations = () => api.get('/api/people/deactivation-pending');
+export const confirmEntraDeactivation = (personId) => api.post(`/api/people/${personId}/confirm-deactivation`);
 export const createPerson = (departmentId, payload) => api.post(`/api/departments/${departmentId}/people`, payload);
 export const updatePerson = (personId, payload) => api.put(`/api/people/${personId}`, payload);
 export const deletePerson = (personId) => api.delete(`/api/people/${personId}`);
@@ -70,11 +72,6 @@ export const updatePersonMaterialSerial = (personId, assignmentId, numeroSerie) 
 );
 export const removePersonMaterial = (personId, assignmentId) => api.delete(`/api/people/${personId}/materials/${assignmentId}`);
 export const undoPersonMaterialAssignment = (personId, assignmentId) => api.delete(`/api/people/${personId}/materials/${assignmentId}/undo`);
-export const getEntraSimulations = ({ page = 1, limit = 20 } = {}) => api.get('/api/entra-sync/simulations', { params: { page, limit } });
-export const createEntraSimulation = () => api.post('/api/entra-sync/simulations', {}, { timeout: 120000 });
 export const synchronizeEntraCatalog = () => api.post('/api/entra-sync/catalog', {}, { timeout: 120000 });
-export const getEntraSimulationItems = (runId, { type, page = 1, limit = 10 } = {}) => (
-  api.get(`/api/entra-sync/simulations/${runId}/items`, { params: { type, page, limit } })
-);
 
 export default api;

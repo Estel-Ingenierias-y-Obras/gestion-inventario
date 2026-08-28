@@ -11,7 +11,8 @@ const listDepartments = async (_req, res, next) => {
       .lean();
     const departmentIds = departments.map((department) => department._id);
     const visiblePeople = await Person.find({
-      departmentId: { $in: departmentIds }, source: 'entra', entraVisible: true, deleted: { $ne: true },
+      departmentId: { $in: departmentIds }, source: 'entra', entraVisible: true,
+      entraDeactivationStatus: { $ne: 'PENDING' }, deleted: { $ne: true },
     }).select('_id departmentId').lean();
     const employeeCountByDepartment = new Map();
     const departmentByPerson = new Map();

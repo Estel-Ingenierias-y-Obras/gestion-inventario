@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 const Department = require('../models/Department');
 const Person = require('../models/Person');
+const EntraUserMonitor = require('../models/EntraUserMonitor');
 const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
 const auditLogger = require('../utils/auditLogger');
-const { returnManualAssignmentToStock, returnStockToOriginalOrders } = require('../services/stockService');
+const { returnAssignmentToStock } = require('../services/stockService');
 const { undoAssignment } = require('../services/assignmentUndoService');
 
 const clean = (value) => String(value ?? '').trim();
@@ -30,7 +31,7 @@ const getDepartment = async (req, res, next) => {
 const listPeopleCatalog = async (_req, res, next) => {
   try {
     const people = await Person.aggregate([
-      { $match: { deleted: { $ne: true }, source: 'entra', entraVisible: true } },
+      { $match: { deleted: { $ne: true }, source: 'entra', entraVisible: true, entraDeactivationStatus: { $ne: 'PENDING' } } },
       { $lookup: { from: 'departments', localField: 'departmentId', foreignField: '_id', as: 'department' } },
       { $unwind: '$department' },
       { $project: { _id: 1, nombreCompleto: 1, departmentId: 1, departmentName: '$department.name' } },
@@ -40,12 +41,99 @@ const listPeopleCatalog = async (_req, res, next) => {
   } catch (error) { return next(error); }
 };
 
+const listPendingDeactivations = async (_req, res, next) => {
+  try {
+    const people = await Person.aggregate([
+      { $match: { source: 'entra', entraDeactivationStatus: 'PENDING', deleted: { $ne: true } } },
+      { $lookup: { from: 'departments', localField: 'departmentId', foreignField: '_id', as: 'department' } },
+      { $lookup: { from: 'personMaterialAssignments', let: { person: '$_id' }, pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ['$personId', '$$person'] },
+            removed: { $ne: true },
+            undone: { $ne: true },
+          },
+        },
+        { $group: { _id: null, assignments: { $sum: 1 }, units: { $sum: '$cantidad' } } },
+      ], as: 'assigned' } },
+      { $set: {
+        departmentName: { $ifNull: [{ $first: '$department.name' }, '$entraDepartment'] },
+        assignmentCount: { $ifNull: [{ $first: '$assigned.assignments' }, 0] },
+        materialUnits: { $ifNull: [{ $first: '$assigned.units' }, 0] },
+      } },
+      { $project: { department: 0, assigned: 0 } },
+      { $sort: { nombreCompleto: 1, _id: 1 } },
+    ]).collation({ locale: 'es', strength: 2 });
+    return res.json({ success: true, data: people });
+  } catch (error) { return next(error); }
+};
+
+const confirmDeactivation = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  try {
+    let personSnapshot;
+    let department;
+    const returnedAssignments = [];
+    await session.withTransaction(async () => {
+      const person = await Person.findOne({
+        _id: req.params.personId, source: 'entra', entraDeactivationStatus: 'PENDING',
+      }).session(session);
+      if (!person) {
+        const error = new Error('La persona no está pendiente de baja.');
+        error.statusCode = 409;
+        error.code = 'DEACTIVATION_NOT_PENDING';
+        throw error;
+      }
+      department = await Department.findById(person.departmentId).session(session).lean();
+      const assignments = await PersonMaterialAssignment.find({
+        personId: person._id, removed: { $ne: true }, undone: { $ne: true },
+      }).session(session);
+      for (const assignment of assignments) {
+        const stockMovements = await returnAssignmentToStock({ assignment, user: req.user, session });
+        returnedAssignments.push({ assignment: assignment.toObject(), stockMovements });
+      }
+      person.entraDeactivationStatus = 'CONFIRMED';
+      person.entraVisible = false;
+      person.entraDeactivationConfirmedAt = new Date();
+      person.entraDeactivationConfirmedBy = req.user;
+      await person.save({ session });
+      await EntraUserMonitor.updateOne(
+        { entraId: person.entraId },
+        { $set: { status: 'CONFIRMED', confirmedAt: person.entraDeactivationConfirmedAt, confirmedBy: req.user } },
+        { session }
+      );
+      personSnapshot = person.toObject();
+    });
+
+    for (const { assignment, stockMovements } of returnedAssignments) {
+      await auditLogger({ action: 'MATERIAL_UNASSIGNED', entity: 'PersonMaterialAssignment', user: req.user,
+        details: auditDetails({ department, person: personSnapshot, assignment, extra: {
+          assignmentId: String(assignment._id), cantidad: assignment.cantidad,
+          fecha: assignment.removedAt, origen: assignment.origen, stockDevuelto: stockMovements,
+          motivo: 'AAD_USER_DEACTIVATION_CONFIRMED',
+        } }), req });
+    }
+    await auditLogger({ action: 'AAD_USER_DEACTIVATION_CONFIRMED', entity: 'Person', user: req.user,
+      details: {
+        personId: String(personSnapshot._id), entraId: personSnapshot.entraId,
+        usuario: personSnapshot.nombreCompleto, departamento: department?.name || personSnapshot.entraDepartment || '',
+        fecha: personSnapshot.entraDeactivationConfirmedAt,
+        cantidadAsignacionesDevueltas: returnedAssignments.length,
+        cantidadUnidadesDevueltas: returnedAssignments.reduce((total, item) => total + Number(item.assignment.cantidad || 0), 0),
+      }, req });
+    return res.json({ success: true, data: {
+      personId: personSnapshot._id, returnedAssignments: returnedAssignments.length,
+      returnedUnits: returnedAssignments.reduce((total, item) => total + Number(item.assignment.cantidad || 0), 0),
+    } });
+  } catch (error) { return next(error); } finally { await session.endSession(); }
+};
+
 const listPeople = async (req, res, next) => {
   try {
     const department = await Department.findOne({ _id: req.params.departmentId, source: { $in: ['entra', 'virtual'] }, entraVisible: true }).lean();
     if (!department) return res.status(404).json({ success: false, message: 'Departamento no encontrado.' });
     const people = await Person.aggregate([
-      { $match: { departmentId: department._id, deleted: { $ne: true }, source: 'entra', entraVisible: true } },
+      { $match: { departmentId: department._id, deleted: { $ne: true }, source: 'entra', entraVisible: true, entraDeactivationStatus: { $ne: 'PENDING' } } },
       { $lookup: { from: 'personMaterialAssignments', let: { person: '$_id' }, pipeline: [
         { $match: { $expr: { $eq: ['$personId', '$$person'] }, removed: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$cantidad' } } },
@@ -111,7 +199,7 @@ const listAssignments = async (req, res, next) => {
 
 const createAssignment = async (req, res, next) => {
   try {
-    const person = await Person.findOne({ _id: req.params.personId, deleted: { $ne: true }, source: 'entra', entraVisible: true }).lean();
+    const person = await Person.findOne({ _id: req.params.personId, deleted: { $ne: true }, source: 'entra', entraVisible: true, entraDeactivationStatus: { $ne: 'PENDING' } }).lean();
     if (!person) return res.status(404).json({ success: false, message: 'Persona no encontrada.' });
     const department = await Department.findById(person.departmentId).lean();
     if (!department) return res.status(409).json({ success: false, message: 'El departamento ya no existe.' });
@@ -177,33 +265,7 @@ const removeAssignment = async (req, res, next) => {
         error.statusCode = 404;
         throw error;
       }
-      if (assignment.origen === 'almacen') {
-        const allocations = assignment.stockAllocations || [];
-        const allocatedQuantity = allocations.reduce((total, item) => total + item.cantidadConsumida, 0);
-        if (allocations.length === 0 || allocatedQuantity !== assignment.cantidad) {
-          const error = new Error('La asignación no conserva una trazabilidad de stock válida.');
-          error.statusCode = 409;
-          error.code = 'INVALID_ASSIGNMENT_TRACE';
-          throw error;
-        }
-        stockMovements = await returnStockToOriginalOrders({
-          allocations,
-          material: assignment.material,
-          modelo: assignment.modelo,
-          assignment,
-          session,
-        });
-      } else {
-        stockMovements = await returnManualAssignmentToStock({
-          assignment,
-          createdBy: req.user?.email || assignment.assignedBy,
-          session,
-        });
-      }
-      assignment.removed = true;
-      assignment.removedAt = new Date();
-      assignment.removedBy = req.user;
-      await assignment.save({ session });
+      stockMovements = await returnAssignmentToStock({ assignment, user: req.user, session });
     });
     const person = await Person.findById(assignment.personId).lean();
     await auditLogger({ action: 'MATERIAL_UNASSIGNED', entity: 'PersonMaterialAssignment', user: req.user,
@@ -251,6 +313,7 @@ const undoPersonAssignment = async (req, res, next) => {
 };
 
 module.exports = {
-  getDepartment, listPeopleCatalog, listPeople, createPerson, updatePerson, deletePerson,
+  getDepartment, listPeopleCatalog, listPendingDeactivations, confirmDeactivation,
+  listPeople, createPerson, updatePerson, deletePerson,
   listAssignments, createAssignment, updateAssignmentSerial, removeAssignment, undoPersonAssignment,
 };

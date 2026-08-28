@@ -3,6 +3,8 @@ const EntraSyncItem = require('../models/EntraSyncItem');
 const Person = require('../models/Person');
 const Department = require('../models/Department');
 const PersonMaterialAssignment = require('../models/PersonMaterialAssignment');
+const EntraUserMonitor = require('../models/EntraUserMonitor');
+const EntraMonitoringState = require('../models/EntraMonitoringState');
 const { listSubscribedSkus, listAllUsers } = require('./entraGraphService');
 const { graphName } = require('./entraMatchingService');
 const { getEligibility, departmentKey } = require('./entraEligibilityService');
@@ -63,9 +65,11 @@ const runSimulation = async ({ trigger, triggeredBy }) => {
   }
 
   try {
-    const [skus, users, people, departments] = await Promise.all([
+    const [skus, users, people, departments, monitors, monitoringState] = await Promise.all([
       listSubscribedSkus(), listAllUsers(),
       Person.find({ deleted: { $ne: true } }).lean(), Department.find().lean(),
+      EntraUserMonitor.find().lean(),
+      EntraMonitoringState.findOne({ key: 'USER_DEACTIVATION_MONITORING' }).lean(),
     ]);
     const allowedPartNumbers = configuredSkuPartNumbers();
     const allowedSet = new Set(allowedPartNumbers);
@@ -80,6 +84,7 @@ const runSimulation = async ({ trigger, triggeredBy }) => {
     const departmentsFound = new Map();
     const departmentCounts = new Map();
     const graphUserById = new Map();
+    const monitorByEntraId = new Map(monitors.map((monitor) => [monitor.entraId.toLowerCase(), monitor]));
     const assignmentsByPerson = new Map();
     const deactivationPersonIds = new Set();
 
@@ -146,12 +151,17 @@ const runSimulation = async ({ trigger, triggeredBy }) => {
     for (const person of people) {
       if (!person.entraId) continue;
       if (deactivationPersonIds.has(String(person._id))) continue;
+      if (!monitoringState?.initialized) continue;
+      const monitor = monitorByEntraId.get(String(person.entraId).toLowerCase());
+      if (!monitor || monitor.status !== 'ACTIVE') continue;
       const graphUser = graphUserById.get(String(person.entraId).toLowerCase());
-      let reason = '';
-      if (!graphUser) reason = 'USER_NOT_FOUND';
-      else {
-        reason = getEligibility(graphUser, allowedSkuIds, skuById).reasons.join(',');
-      }
+      if (!graphUser) continue;
+      const eligibility = getEligibility(graphUser, allowedSkuIds, skuById);
+      const reason = [
+        eligibility.reasons.includes('LICENSE_NOT_ALLOWED') && 'LICENSE_REMOVED',
+        eligibility.reasons.includes('COUNTRY_NOT_PROVIDED') && 'COUNTRY_REMOVED',
+        eligibility.reasons.includes('COUNTRY_NOT_ALLOWED') && 'COUNTRY_CHANGED',
+      ].filter(Boolean).join(',');
       if (!reason) continue;
       const personAssignments = assignmentsByPerson.get(String(person._id)) || [];
       const preview = materialPreview(personAssignments);
